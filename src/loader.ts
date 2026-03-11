@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { fileURLToPath } from 'url'
 import { dirname, resolve, join } from 'path'
-import { readFileSync } from 'fs'
-import { agentDir } from './app-paths.js'
+import { existsSync, readFileSync } from 'fs'
+import { agentDir, appRoot } from './app-paths.js'
 
 // pkg/ is a shim directory: contains gsd's piConfig (package.json) and pi's
 // theme assets (dist/modes/interactive/theme/) without a src/ directory.
@@ -15,6 +15,32 @@ const pkgDir = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'pkg')
 // reads to determine APP_NAME and CONFIG_DIR_NAME
 process.env.PI_PACKAGE_DIR = pkgDir
 process.title = 'gsd'
+
+// Print branded banner on first launch (before ~/.gsd/ exists)
+if (!existsSync(appRoot)) {
+  const cyan  = '\x1b[36m'
+  const green = '\x1b[32m'
+  const dim   = '\x1b[2m'
+  const reset = '\x1b[0m'
+  let version = ''
+  try {
+    const pkgJson = JSON.parse(readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '..', 'package.json'), 'utf-8'))
+    version = pkgJson.version ?? ''
+  } catch { /* ignore */ }
+  process.stderr.write(
+    '\n' +
+    cyan +
+    '   ██████╗ ███████╗██████╗ \n' +
+    '  ██╔════╝ ██╔════╝██╔══██╗\n' +
+    '  ██║  ███╗███████╗██║  ██║\n' +
+    '  ██║   ██║╚════██║██║  ██║\n' +
+    '  ╚██████╔╝███████║██████╔╝\n' +
+    '   ╚═════╝ ╚══════╝╚═════╝ ' +
+    reset + '\n\n' +
+    `  Get Shit Done ${dim}v${version}${reset}\n` +
+    `  ${green}Welcome.${reset} Setting up your environment...\n\n`
+  )
+}
 
 // GSD_CODING_AGENT_DIR — tells pi's getAgentDir() to return ~/.gsd/agent/ instead of ~/.pi/agent/
 process.env.GSD_CODING_AGENT_DIR = agentDir
