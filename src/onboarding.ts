@@ -251,49 +251,48 @@ async function runLlmStep(p: ClackModule, pc: PicoModule, authStorage: AuthStora
   const oauthProviders = authStorage.getOAuthProviders()
   const oauthMap = new Map(oauthProviders.map(op => [op.id, op]))
 
-  const choice = await p.select({
-    message: 'Choose your LLM provider',
+  // ── Step 1: How do you want to authenticate? ─────────────────────────────
+  const method = await p.select({
+    message: 'How do you want to sign in?',
     options: [
-      { value: 'anthropic-oauth', label: 'Anthropic — Claude (OAuth login)', hint: 'recommended' },
-      { value: 'anthropic-api-key', label: 'Anthropic — Claude (API key)' },
-      { value: 'openai-api-key', label: 'OpenAI (API key)' },
-      { value: 'github-copilot-oauth', label: 'GitHub Copilot (OAuth login)' },
-      { value: 'openai-codex-oauth', label: 'ChatGPT Plus/Pro — Codex (OAuth login)' },
-      { value: 'google-gemini-cli-oauth', label: 'Google Gemini CLI (OAuth login)' },
-      { value: 'google-antigravity-oauth', label: 'Antigravity — Gemini 3, Claude, GPT-OSS (OAuth login)' },
-      { value: 'other-api-key', label: 'Other provider (API key)' },
+      { value: 'browser', label: 'Sign in with your browser', hint: 'recommended — same login as claude.ai / ChatGPT' },
+      { value: 'api-key', label: 'Paste an API key', hint: 'from your provider dashboard' },
       { value: 'skip', label: 'Skip for now', hint: 'use /login inside GSD later' },
     ],
   })
 
-  if (p.isCancel(choice) || choice === 'skip') return false
+  if (p.isCancel(method) || method === 'skip') return false
 
-  // ── OAuth flows ───────────────────────────────────────────────────────────
-  if (choice === 'anthropic-oauth') {
-    return await runOAuthFlow(p, pc, authStorage, 'anthropic', oauthMap)
-  }
-  if (choice === 'github-copilot-oauth') {
-    return await runOAuthFlow(p, pc, authStorage, 'github-copilot', oauthMap)
-  }
-  if (choice === 'openai-codex-oauth') {
-    return await runOAuthFlow(p, pc, authStorage, 'openai-codex', oauthMap)
-  }
-  if (choice === 'google-gemini-cli-oauth') {
-    return await runOAuthFlow(p, pc, authStorage, 'google-gemini-cli', oauthMap)
-  }
-  if (choice === 'google-antigravity-oauth') {
-    return await runOAuthFlow(p, pc, authStorage, 'google-antigravity', oauthMap)
+  // ── Step 2: Which provider? ──────────────────────────────────────────────
+  if (method === 'browser') {
+    const provider = await p.select({
+      message: 'Choose provider',
+      options: [
+        { value: 'anthropic', label: 'Anthropic (Claude)', hint: 'recommended' },
+        { value: 'github-copilot', label: 'GitHub Copilot' },
+        { value: 'openai-codex', label: 'ChatGPT Plus/Pro (Codex)' },
+        { value: 'google-gemini-cli', label: 'Google Gemini CLI' },
+        { value: 'google-antigravity', label: 'Antigravity (Gemini 3, Claude, GPT-OSS)' },
+      ],
+    })
+    if (p.isCancel(provider)) return false
+    return await runOAuthFlow(p, pc, authStorage, provider as string, oauthMap)
   }
 
-  // ── API key flows ─────────────────────────────────────────────────────────
-  if (choice === 'anthropic-api-key') {
-    return await runApiKeyFlow(p, pc, authStorage, 'anthropic', 'Anthropic')
-  }
-  if (choice === 'openai-api-key') {
-    return await runApiKeyFlow(p, pc, authStorage, 'openai', 'OpenAI')
-  }
-  if (choice === 'other-api-key') {
-    return await runOtherProviderFlow(p, pc, authStorage)
+  if (method === 'api-key') {
+    const provider = await p.select({
+      message: 'Choose provider',
+      options: [
+        { value: 'anthropic', label: 'Anthropic (Claude)' },
+        { value: 'openai', label: 'OpenAI' },
+        ...OTHER_PROVIDERS.map(op => ({ value: op.value, label: op.label })),
+      ],
+    })
+    if (p.isCancel(provider)) return false
+    const label = provider === 'anthropic' ? 'Anthropic'
+      : provider === 'openai' ? 'OpenAI'
+      : OTHER_PROVIDERS.find(op => op.value === provider)?.label ?? String(provider)
+    return await runApiKeyFlow(p, pc, authStorage, provider as string, label)
   }
 
   return false
@@ -397,26 +396,6 @@ async function runApiKeyFlow(
   authStorage.set(providerId, { type: 'api_key', key: trimmed })
   p.log.success(`API key saved for ${pc.green(providerLabel)}`)
   return true
-}
-
-// ─── "Other Provider" Sub-Flow ────────────────────────────────────────────────
-
-async function runOtherProviderFlow(
-  p: ClackModule,
-  pc: PicoModule,
-  authStorage: AuthStorage,
-): Promise<boolean> {
-  const provider = await p.select({
-    message: 'Select provider',
-    options: OTHER_PROVIDERS.map(op => ({
-      value: op.value,
-      label: op.label,
-    })),
-  })
-
-  if (p.isCancel(provider)) return false
-  const label = OTHER_PROVIDERS.find(op => op.value === provider)?.label ?? String(provider)
-  return runApiKeyFlow(p, pc, authStorage, provider as string, label)
 }
 
 // ─── Tool API Keys Step ───────────────────────────────────────────────────────
