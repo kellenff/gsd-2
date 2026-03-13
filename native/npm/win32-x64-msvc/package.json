@@ -1,5 +1,5 @@
 {
-  "name": "@gsd/engine-win32-x64-msvc",
+  "name": "@gsd-build/engine-win32-x64-msvc",
   "version": "2.10.2",
   "description": "GSD native engine binary for Windows x64 (MSVC)",
   "os": [

@@ -48,7 +48,7 @@ for (const platform of platformPackages) {
 let rootChanged = false;
 const optDeps = rootPkg.optionalDependencies || {};
 for (const platform of platformPackages) {
-  const depName = `@gsd/engine-${platform}`;
+  const depName = `@gsd-build/engine-${platform}`;
   if (optDeps[depName] && optDeps[depName] !== version) {
     console.log(`  root optionalDependencies ${depName}: ${optDeps[depName]} -> ${version}`);
     optDeps[depName] = version;

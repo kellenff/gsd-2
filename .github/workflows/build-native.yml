@@ -122,7 +122,7 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           for platform in darwin-arm64 darwin-x64 linux-x64-gnu linux-arm64-gnu win32-x64-msvc; do
-            echo "Publishing @gsd/engine-${platform}..."
+            echo "Publishing @gsd-build/engine-${platform}..."
             cd "native/npm/${platform}"
             OUTPUT=$(npm publish --access public 2>&1) && echo "$OUTPUT" || {
               if echo "$OUTPUT" | grep -q "cannot publish over the previously published"; then

@@ -1,5 +1,5 @@
 {
-  "name": "@gsd/engine-darwin-x64",
+  "name": "@gsd-build/engine-darwin-x64",
   "version": "2.10.2",
   "description": "GSD native engine binary for macOS Intel",
   "os": [
