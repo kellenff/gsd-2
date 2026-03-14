@@ -53,6 +53,27 @@ export function isMilestoneComplete(roadmap: Roadmap): boolean {
 
 // ─── State Derivation ──────────────────────────────────────────────────────
 
+// ── deriveState memoization ─────────────────────────────────────────────────
+// Cache the most recent deriveState() result keyed by basePath. Within a single
+// dispatch cycle (~100ms window), repeated calls return the cached value instead
+// of re-reading the entire .gsd/ tree from disk.
+
+interface StateCache {
+  basePath: string;
+  result: GSDState;
+  timestamp: number;
+}
+
+const CACHE_TTL_MS = 100;
+let _stateCache: StateCache | null = null;
+
+/**
+ * Invalidate the deriveState() cache. Call this whenever planning files on disk
+ * may have changed (unit completion, merges, file writes).
+ */
+export function invalidateStateCache(): void {
+  _stateCache = null;
+}
 
 /**
  * Returns the ID of the first incomplete milestone, or null if all are complete.
@@ -86,6 +107,21 @@ export async function getActiveMilestoneId(basePath: string): Promise<string | n
  * Falls back to sequential JS file reads when the native module is absent.
  */
 export async function deriveState(basePath: string): Promise<GSDState> {
+  // Return cached result if within the TTL window for the same basePath
+  if (
+    _stateCache &&
+    _stateCache.basePath === basePath &&
+    Date.now() - _stateCache.timestamp < CACHE_TTL_MS
+  ) {
+    return _stateCache.result;
+  }
+
+  const result = await _deriveStateImpl(basePath);
+  _stateCache = { basePath, result, timestamp: Date.now() };
+  return result;
+}
+
+async function _deriveStateImpl(basePath: string): Promise<GSDState> {
   const milestoneIds = findMilestoneIds(basePath);
 
   // ── Batch-parse file cache ──────────────────────────────────────────────
