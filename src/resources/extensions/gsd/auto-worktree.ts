@@ -158,7 +158,15 @@ export function createAutoWorktree(basePath: string, milestoneId: string): strin
   // Planning artifacts may be untracked if the project's .gitignore had a
   // blanket .gsd/ rule (pre-v2.14.0). Without this copy, auto-mode loops
   // on plan-slice because the plan file doesn't exist in the worktree.
-  copyPlanningArtifacts(basePath, info.path);
+  //
+  // IMPORTANT: Skip when re-attaching to an existing branch (#759).
+  // The branch checkout already has committed artifacts with correct state
+  // (e.g. [x] for completed slices). Copying from the project root would
+  // overwrite them with stale data ([ ] checkboxes) because the root is
+  // not always fully synced.
+  if (!branchExists) {
+    copyPlanningArtifacts(basePath, info.path);
+  }
 
   // Run user-configured post-create hook (#597) — e.g. copy .env, symlink assets
   const hookError = runWorktreePostCreateHook(basePath, info.path);

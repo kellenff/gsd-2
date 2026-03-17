@@ -248,31 +248,24 @@ async function main(): Promise<void> {
     }
   }
 
-  // ─── Test 5: Requirements counting from DB content ────────────────────
-  console.log('\n=== derive-state-db: requirements from DB content ===');
+  // ─── Test 5: Requirements counting from disk (DB no longer used for content) ─
+  console.log('\n=== derive-state-db: requirements from disk content ===');
   {
     const base = createFixtureBase();
     try {
       // Write minimal milestone dir (needed for milestone discovery)
       mkdirSync(join(base, '.gsd', 'milestones', 'M001'), { recursive: true });
-      // Do NOT write REQUIREMENTS.md to disk — only in DB
-
-      openDatabase(':memory:');
-      insertArtifactRow('REQUIREMENTS.md', REQUIREMENTS_CONTENT, {
-        artifact_type: 'requirements',
-      });
+      // Write REQUIREMENTS.md to disk (DB content is no longer used by deriveState)
+      writeFile(base, 'REQUIREMENTS.md', REQUIREMENTS_CONTENT);
 
       invalidateStateCache();
       const state = await deriveState(base);
 
-      // Requirements should come from DB
-      assertEq(state.requirements?.active, 2, 'req-from-db: requirements.active = 2');
-      assertEq(state.requirements?.validated, 1, 'req-from-db: requirements.validated = 1');
-      assertEq(state.requirements?.total, 3, 'req-from-db: requirements.total = 3');
-
-      closeDatabase();
+      // Requirements should come from disk
+      assertEq(state.requirements?.active, 2, 'req-from-disk: requirements.active = 2');
+      assertEq(state.requirements?.validated, 1, 'req-from-disk: requirements.validated = 1');
+      assertEq(state.requirements?.total, 3, 'req-from-disk: requirements.total = 3');
     } finally {
-      closeDatabase();
       cleanup(base);
     }
   }
