@@ -1,6 +1,6 @@
 /**
  * Preferences tests — consolidated from:
- *   - preferences-git.test.ts (git.isolation, git.merge_to_main, git.commit_docs)
+ *   - preferences-git.test.ts (git.isolation, git.merge_to_main)
  *   - preferences-hooks.test.ts (post-unit + pre-dispatch hook config)
  *   - preferences-mode.test.ts (solo/team mode defaults, overrides)
  *   - preferences-models.test.ts (model config parsing, OpenRouter, CRLF)
@@ -39,13 +39,6 @@ test("git.merge_to_main produces deprecation warning", () => {
   }
 });
 
-test("git.commit_docs produces deprecation warning", () => {
-  const { warnings: w1 } = validatePreferences({ git: { commit_docs: false } });
-  assert.ok(w1.some(w => w.includes("deprecated")));
-
-  const { warnings: w2 } = validatePreferences({ git: { commit_docs: true } });
-  assert.ok(w2.some(w => w.includes("deprecated")));
-});
 
 test("getIsolationMode defaults to worktree when no prefs file", { skip: "requires no global ~/.gsd/preferences.md" }, () => {
   assert.equal(getIsolationMode(), "worktree");
