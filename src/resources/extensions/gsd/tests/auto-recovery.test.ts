@@ -13,9 +13,17 @@ import {
   selfHealRuntimeRecords,
   hasImplementationArtifacts,
 } from "../auto-recovery.ts";
-import { parseRoadmap, clearParseCache } from "../files.ts";
+import { parseRoadmap, parsePlan, parseTaskPlanFile, clearParseCache } from "../files.ts";
 import { invalidateAllCaches } from "../cache.ts";
 import { deriveState, invalidateStateCache } from "../state.ts";
+import {
+  openDatabase,
+  closeDatabase,
+  insertMilestone,
+  insertSlice,
+  insertTask,
+} from "../gsd-db.ts";
+import { renderPlanFromDb } from "../markdown-renderer.ts";
 
 function makeTmpBase(): string {
   const base = join(tmpdir(), `gsd-test-${randomUUID()}`);
@@ -466,6 +474,143 @@ test("verifyExpectedArtifact execute-task passes for heading-style plan entry (#
       "execute-task should pass for heading-style plan entry when summary exists",
     );
   } finally {
+    cleanup(base);
+  }
+});
+
+test("verifyExpectedArtifact plan-slice passes for rendered slice/task plan artifacts from DB", async () => {
+  const base = makeTmpBase();
+  const dbPath = join(base, ".gsd", "gsd.db");
+  openDatabase(dbPath);
+  try {
+    insertMilestone({ id: "M001", title: "Milestone", status: "active" });
+    insertSlice({
+      id: "S01",
+      milestoneId: "M001",
+      title: "Rendered slice",
+      status: "pending",
+      demo: "Rendered plan artifacts exist.",
+      planning: {
+        goal: "Render plans from DB rows.",
+        successCriteria: "- Slice plan parses\n- Task plan files exist on disk",
+        proofLevel: "integration",
+        integrationClosure: "DB rows are the source of truth for PLAN artifacts.",
+        observabilityImpact: "- Recovery verification fails if a task plan file is missing",
+      },
+    });
+    insertTask({
+      id: "T01",
+      sliceId: "S01",
+      milestoneId: "M001",
+      title: "Render plan",
+      status: "pending",
+      planning: {
+        description: "Create the slice plan from DB state.",
+        estimate: "30m",
+        files: ["src/resources/extensions/gsd/markdown-renderer.ts"],
+        verify: "node --test markdown-renderer.test.ts",
+        inputs: ["src/resources/extensions/gsd/gsd-db.ts"],
+        expectedOutput: ["src/resources/extensions/gsd/tests/markdown-renderer.test.ts"],
+        observabilityImpact: "Renderer tests cover the failure mode.",
+      },
+    });
+    insertTask({
+      id: "T02",
+      sliceId: "S01",
+      milestoneId: "M001",
+      title: "Verify recovery",
+      status: "pending",
+      planning: {
+        description: "Prove task plan files remain present for recovery.",
+        estimate: "20m",
+        files: ["src/resources/extensions/gsd/auto-recovery.ts"],
+        verify: "node --test auto-recovery.test.ts",
+        inputs: ["src/resources/extensions/gsd/auto-recovery.ts"],
+        expectedOutput: ["src/resources/extensions/gsd/tests/auto-recovery.test.ts"],
+        observabilityImpact: "Missing plan files surface as explicit verification failures.",
+      },
+    });
+
+    const rendered = await renderPlanFromDb(base, "M001", "S01");
+    assert.ok(existsSync(rendered.planPath), "renderPlanFromDb should write the slice plan");
+    assert.equal(rendered.taskPlanPaths.length, 2, "renderPlanFromDb should render one task plan per task");
+
+    const planContent = readFileSync(rendered.planPath, "utf-8");
+    const parsedPlan = parsePlan(planContent);
+    assert.equal(parsedPlan.tasks.length, 2, "rendered slice plan should parse into task entries");
+
+    const taskPlanContent = readFileSync(rendered.taskPlanPaths[0], "utf-8");
+    const taskPlan = parseTaskPlanFile(taskPlanContent);
+    assert.deepEqual(taskPlan.frontmatter.skills_used, [], "rendered task plans should use conservative empty skills_used");
+
+    const result = verifyExpectedArtifact("plan-slice", "M001/S01", base);
+    assert.equal(result, true, "plan-slice verification should pass when rendered task plan files exist");
+  } finally {
+    closeDatabase();
+    cleanup(base);
+  }
+});
+
+test("verifyExpectedArtifact plan-slice fails after deleting a rendered task plan file", async () => {
+  const base = makeTmpBase();
+  const dbPath = join(base, ".gsd", "gsd.db");
+  openDatabase(dbPath);
+  try {
+    insertMilestone({ id: "M001", title: "Milestone", status: "active" });
+    insertSlice({
+      id: "S01",
+      milestoneId: "M001",
+      title: "Rendered slice",
+      status: "pending",
+      demo: "Rendered plan artifacts exist.",
+      planning: {
+        goal: "Render plans from DB rows.",
+        successCriteria: "- Slice plan parses\n- Task plan files exist on disk",
+        proofLevel: "integration",
+        integrationClosure: "DB rows are the source of truth for PLAN artifacts.",
+        observabilityImpact: "- Recovery verification fails if a task plan file is missing",
+      },
+    });
+    insertTask({
+      id: "T01",
+      sliceId: "S01",
+      milestoneId: "M001",
+      title: "Render plan",
+      status: "pending",
+      planning: {
+        description: "Create the slice plan from DB state.",
+        estimate: "30m",
+        files: ["src/resources/extensions/gsd/markdown-renderer.ts"],
+        verify: "node --test markdown-renderer.test.ts",
+        inputs: ["src/resources/extensions/gsd/gsd-db.ts"],
+        expectedOutput: ["src/resources/extensions/gsd/tests/markdown-renderer.test.ts"],
+        observabilityImpact: "Renderer tests cover the failure mode.",
+      },
+    });
+    insertTask({
+      id: "T02",
+      sliceId: "S01",
+      milestoneId: "M001",
+      title: "Verify recovery",
+      status: "pending",
+      planning: {
+        description: "Prove task plan files remain present for recovery.",
+        estimate: "20m",
+        files: ["src/resources/extensions/gsd/auto-recovery.ts"],
+        verify: "node --test auto-recovery.test.ts",
+        inputs: ["src/resources/extensions/gsd/auto-recovery.ts"],
+        expectedOutput: ["src/resources/extensions/gsd/tests/auto-recovery.test.ts"],
+        observabilityImpact: "Missing plan files surface as explicit verification failures.",
+      },
+    });
+
+    const rendered = await renderPlanFromDb(base, "M001", "S01");
+    rmSync(rendered.taskPlanPaths[1]);
+
+    const result = verifyExpectedArtifact("plan-slice", "M001/S01", base);
+    assert.equal(result, false, "plan-slice verification should fail when a rendered task plan file is removed");
+  } finally {
+    closeDatabase();
     cleanup(base);
   }
 });

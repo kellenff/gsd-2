@@ -22,6 +22,8 @@ import {
   renderTaskSummary,
   renderSliceSummary,
   renderAllFromDb,
+  renderPlanFromDb,
+  renderTaskPlanFromDb,
   detectStaleRenders,
   repairStaleRenders,
 } from '../markdown-renderer.ts';
@@ -29,6 +31,7 @@ import {
   parseRoadmap,
   parsePlan,
   parseSummary,
+  parseTaskPlanFile,
   clearParseCache,
 } from '../files.ts';
 import { clearPathCache, _clearGsdRootCache } from '../paths.ts';
@@ -427,6 +430,134 @@ console.log('\n── markdown-renderer: renderPlanCheckboxes bidirectional ─�
     const t02 = parsed.tasks.find(t => t.id === 'T02');
     assertTrue(!t01!.done, 'T01 unchecked (DB says pending, was checked)');
     assertTrue(t02!.done, 'T02 checked (DB says done, was unchecked)');
+  } finally {
+    closeDatabase();
+    cleanupDir(tmpDir);
+  }
+}
+
+console.log('\n── markdown-renderer: renderPlanFromDb creates parse-compatible slice plan + task plan files ──');
+
+{
+  const tmpDir = makeTmpDir();
+  const dbPath = path.join(tmpDir, '.gsd', 'gsd.db');
+  openDatabase(dbPath);
+  clearAllCaches();
+
+  try {
+    scaffoldDirs(tmpDir, 'M001', ['S02']);
+
+    insertMilestone({ id: 'M001', title: 'Milestone', status: 'active' });
+    insertSlice({
+      id: 'S02',
+      milestoneId: 'M001',
+      title: 'DB-backed planning',
+      status: 'pending',
+      demo: 'Rendered plans exist on disk.',
+      planning: {
+        goal: 'Render slice plans from DB state.',
+        successCriteria: '- Slice plan stays parse-compatible\n- Task plan files are regenerated',
+        proofLevel: 'integration',
+        integrationClosure: 'Wires DB planning rows to markdown artifacts.',
+        observabilityImpact: '- Run renderer contract tests\n- Inspect stale-render diagnostics on mismatch',
+      },
+    });
+    insertTask({
+      id: 'T01',
+      sliceId: 'S02',
+      milestoneId: 'M001',
+      title: 'Render slice plan',
+      status: 'pending',
+      planning: {
+        description: 'Implement the DB-backed slice plan renderer.',
+        estimate: '45m',
+        files: ['src/resources/extensions/gsd/markdown-renderer.ts'],
+        verify: 'node --test markdown-renderer.test.ts',
+        inputs: ['src/resources/extensions/gsd/markdown-renderer.ts'],
+        expectedOutput: ['src/resources/extensions/gsd/tests/markdown-renderer.test.ts'],
+        observabilityImpact: 'Renderer tests cover stale render failure paths.',
+      },
+    });
+    insertTask({
+      id: 'T02',
+      sliceId: 'S02',
+      milestoneId: 'M001',
+      title: 'Render task plan',
+      status: 'pending',
+      planning: {
+        description: 'Emit the task plan file with conservative frontmatter.',
+        estimate: '30m',
+        files: ['src/resources/extensions/gsd/files.ts'],
+        verify: 'node --test auto-recovery.test.ts',
+        inputs: ['src/resources/extensions/gsd/files.ts'],
+        expectedOutput: ['src/resources/extensions/gsd/tests/auto-recovery.test.ts'],
+        observabilityImpact: 'Missing task-plan files fail recovery verification.',
+      },
+    });
+
+    const rendered = await renderPlanFromDb(tmpDir, 'M001', 'S02');
+    assertTrue(fs.existsSync(rendered.planPath), 'slice plan written to disk');
+    assertEq(rendered.taskPlanPaths.length, 2, 'task plan paths returned for each task');
+    assertTrue(rendered.taskPlanPaths.every((p) => fs.existsSync(p)), 'all task plan files written to disk');
+
+    const planContent = fs.readFileSync(rendered.planPath, 'utf-8');
+    clearAllCaches();
+    const parsedPlan = parsePlan(planContent);
+    assertEq(parsedPlan.id, 'S02', 'rendered slice plan parses with correct slice id');
+    assertEq(parsedPlan.goal, 'Render slice plans from DB state.', 'rendered slice plan preserves goal');
+    assertEq(parsedPlan.demo, 'Rendered plans exist on disk.', 'rendered slice plan preserves demo');
+    assertEq(parsedPlan.mustHaves.length, 2, 'rendered slice plan exposes must-haves');
+    assertEq(parsedPlan.tasks.length, 2, 'rendered slice plan exposes all tasks');
+    assertEq(parsedPlan.tasks[0].id, 'T01', 'first task parses correctly');
+    assertTrue(parsedPlan.tasks[0].description.includes('DB-backed slice plan renderer'), 'task description preserved in slice plan');
+    assertEq(parsedPlan.tasks[0].files?.[0], 'src/resources/extensions/gsd/markdown-renderer.ts', 'files list preserved in slice plan');
+    assertEq(parsedPlan.tasks[0].verify, 'node --test markdown-renderer.test.ts', 'verify line preserved in slice plan');
+
+    const planArtifact = getArtifact('milestones/M001/slices/S02/S02-PLAN.md');
+    assertTrue(planArtifact !== null, 'slice plan artifact stored in DB');
+    assertTrue(planArtifact!.full_content.includes('## Tasks'), 'stored plan artifact contains task section');
+
+    const taskPlanPath = path.join(tmpDir, '.gsd', 'milestones', 'M001', 'slices', 'S02', 'tasks', 'T01-PLAN.md');
+    const taskPlanContent = fs.readFileSync(taskPlanPath, 'utf-8');
+    const taskPlanFile = parseTaskPlanFile(taskPlanContent);
+    assertEq(taskPlanFile.frontmatter.estimated_steps, 1, 'task plan frontmatter exposes estimated_steps');
+    assertEq(taskPlanFile.frontmatter.estimated_files, 1, 'task plan frontmatter exposes estimated_files');
+    assertEq(taskPlanFile.frontmatter.skills_used.length, 0, 'task plan frontmatter uses conservative empty skills list');
+    assertMatch(taskPlanContent, /^# T01: Render slice plan/m, 'task plan renders task heading');
+    assertMatch(taskPlanContent, /^## Inputs$/m, 'task plan renders Inputs section');
+    assertMatch(taskPlanContent, /^## Expected Output$/m, 'task plan renders Expected Output section');
+    assertMatch(taskPlanContent, /^## Verification$/m, 'task plan renders Verification section');
+
+    const taskArtifact = getArtifact('milestones/M001/slices/S02/tasks/T01-PLAN.md');
+    assertTrue(taskArtifact !== null, 'task plan artifact stored in DB');
+    assertTrue(taskArtifact!.full_content.includes('skills_used: []'), 'stored task plan artifact preserves conservative skills_used');
+  } finally {
+    closeDatabase();
+    cleanupDir(tmpDir);
+  }
+}
+
+console.log('\n── markdown-renderer: renderTaskPlanFromDb throws for missing task ──');
+
+{
+  const tmpDir = makeTmpDir();
+  const dbPath = path.join(tmpDir, '.gsd', 'gsd.db');
+  openDatabase(dbPath);
+  clearAllCaches();
+
+  try {
+    scaffoldDirs(tmpDir, 'M001', ['S02']);
+    insertMilestone({ id: 'M001', title: 'Milestone', status: 'active' });
+    insertSlice({ id: 'S02', milestoneId: 'M001', title: 'Slice', status: 'pending' });
+
+    let threw = false;
+    try {
+      await renderTaskPlanFromDb(tmpDir, 'M001', 'S02', 'T99');
+    } catch (error) {
+      threw = true;
+      assertMatch(String((error as Error).message), /task M001\/S02\/T99 not found/, 'renderTaskPlanFromDb should fail clearly when task row is missing');
+    }
+    assertTrue(threw, 'renderTaskPlanFromDb throws when the task row is missing');
   } finally {
     closeDatabase();
     cleanupDir(tmpDir);

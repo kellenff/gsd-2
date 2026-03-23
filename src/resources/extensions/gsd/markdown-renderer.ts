@@ -8,7 +8,7 @@
 // Critical invariant: rendered markdown must round-trip through
 // parseRoadmap(), parsePlan(), parseSummary() in files.ts.
 
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import {
   getAllMilestones,
@@ -185,6 +185,228 @@ function renderRoadmapMarkdown(milestone: MilestoneRow, slices: SliceRow[]): str
   }
 
   return `${lines.join("\n").trimEnd()}\n`;
+}
+
+function renderTaskPlanMarkdown(task: TaskRow): string {
+  const estimatedSteps = Math.max(1, task.description.trim().split(/\n+/).filter(Boolean).length || 1);
+  const estimatedFiles = task.files.length > 0
+    ? task.files.length
+    : task.expected_output.length > 0
+      ? task.expected_output.length
+      : task.inputs.length > 0
+        ? task.inputs.length
+        : 1;
+
+  const lines: string[] = [];
+  lines.push("---");
+  lines.push(`estimated_steps: ${estimatedSteps}`);
+  lines.push(`estimated_files: ${estimatedFiles}`);
+  lines.push("skills_used: []");
+  lines.push("---");
+  lines.push("");
+  lines.push(`# ${task.id}: ${task.title || task.id}`);
+  lines.push("");
+
+  if (task.description.trim()) {
+    lines.push(task.description.trim());
+    lines.push("");
+  }
+
+  lines.push("## Steps");
+  lines.push("");
+  if (task.description.trim()) {
+    for (const paragraph of task.description.split(/\n+/).map((line) => line.trim()).filter(Boolean)) {
+      lines.push(`- ${paragraph}`);
+    }
+  } else {
+    lines.push("- Implement the planned task work.");
+  }
+  lines.push("");
+
+  lines.push("## Inputs");
+  lines.push("");
+  if (task.inputs.length > 0) {
+    for (const input of task.inputs) {
+      lines.push(`- \`${input}\``);
+    }
+  } else {
+    lines.push("- None specified.");
+  }
+  lines.push("");
+
+  lines.push("## Expected Output");
+  lines.push("");
+  if (task.expected_output.length > 0) {
+    for (const output of task.expected_output) {
+      lines.push(`- \`${output}\``);
+    }
+  } else if (task.files.length > 0) {
+    for (const file of task.files) {
+      lines.push(`- \`${file}\``);
+    }
+  } else {
+    lines.push("- Update the implementation and proof artifacts needed for this task.");
+  }
+  lines.push("");
+
+  lines.push("## Verification");
+  lines.push("");
+  lines.push(task.verify.trim() || "- Verify the task outcome with the slice-level checks.");
+  lines.push("");
+
+  if (task.observability_impact.trim()) {
+    lines.push("## Observability Impact");
+    lines.push("");
+    lines.push(task.observability_impact.trim());
+    lines.push("");
+  }
+
+  return `${lines.join("\n").trimEnd()}\n`;
+}
+
+function renderSlicePlanMarkdown(slice: SliceRow, tasks: TaskRow[]): string {
+  const lines: string[] = [];
+
+  lines.push(`# ${slice.id}: ${slice.title || slice.id}`);
+  lines.push("");
+  lines.push(`**Goal:** ${slice.goal}`);
+  lines.push(`**Demo:** ${slice.demo}`);
+  lines.push("");
+
+  lines.push("## Must-Haves");
+  lines.push("");
+  if (slice.success_criteria.trim()) {
+    for (const line of slice.success_criteria.split(/\n+/).map((entry) => entry.trim()).filter(Boolean)) {
+      lines.push(line.startsWith("-") ? line : `- ${line}`);
+    }
+  } else {
+    lines.push("- Complete the planned slice outcomes.");
+  }
+  lines.push("");
+
+  if (slice.proof_level.trim()) {
+    lines.push("## Proof Level");
+    lines.push("");
+    lines.push(`- This slice proves: ${slice.proof_level.trim()}`);
+    lines.push("");
+  }
+
+  if (slice.integration_closure.trim()) {
+    lines.push("## Integration Closure");
+    lines.push("");
+    lines.push(slice.integration_closure.trim());
+    lines.push("");
+  }
+
+  lines.push("## Verification");
+  lines.push("");
+  if (slice.observability_impact.trim()) {
+    const verificationLines = slice.observability_impact
+      .split(/\n+/)
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+    for (const line of verificationLines) {
+      lines.push(line.startsWith("-") ? line : `- ${line}`);
+    }
+  } else {
+    lines.push("- Run the task and slice verification checks for this slice.");
+  }
+  lines.push("");
+
+  lines.push("## Tasks");
+  lines.push("");
+  for (const task of tasks) {
+    const done = task.status === "done" || task.status === "complete" ? "x" : " ";
+    const estimate = task.estimate.trim() ? ` \`est:${task.estimate.trim()}\`` : "";
+    lines.push(`- [${done}] **${task.id}: ${task.title || task.id}**${estimate}`);
+    if (task.description.trim()) {
+      lines.push(`  ${task.description.trim()}`);
+    }
+    if (task.files.length > 0) {
+      lines.push(`  - Files: ${task.files.map((file) => `\`${file}\``).join(", ")}`);
+    }
+    if (task.verify.trim()) {
+      lines.push(`  - Verify: ${task.verify.trim()}`);
+    }
+    lines.push("");
+  }
+
+  const filesLikelyTouched = Array.from(new Set(tasks.flatMap((task) => task.files)));
+  if (filesLikelyTouched.length > 0) {
+    lines.push("## Files Likely Touched");
+    lines.push("");
+    for (const file of filesLikelyTouched) {
+      lines.push(`- ${file}`);
+    }
+    lines.push("");
+  }
+
+  return `${lines.join("\n").trimEnd()}\n`;
+}
+
+export async function renderPlanFromDb(
+  basePath: string,
+  milestoneId: string,
+  sliceId: string,
+): Promise<{ planPath: string; taskPlanPaths: string[]; content: string }> {
+  const slice = getSlice(milestoneId, sliceId);
+  if (!slice) {
+    throw new Error(`slice ${milestoneId}/${sliceId} not found`);
+  }
+
+  const tasks = getSliceTasks(milestoneId, sliceId);
+  if (tasks.length === 0) {
+    throw new Error(`no tasks found for ${milestoneId}/${sliceId}`);
+  }
+
+  const slicePath = resolveSlicePath(basePath, milestoneId, sliceId)
+    ?? join(gsdRoot(basePath), "milestones", milestoneId, "slices", sliceId);
+  const absPath = resolveSliceFile(basePath, milestoneId, sliceId, "PLAN")
+    ?? join(slicePath, `${sliceId}-PLAN.md`);
+  const artifactPath = toArtifactPath(absPath, basePath);
+  const content = renderSlicePlanMarkdown(slice, tasks);
+
+  await writeAndStore(absPath, artifactPath, content, {
+    artifact_type: "PLAN",
+    milestone_id: milestoneId,
+    slice_id: sliceId,
+  });
+
+  const taskPlanPaths: string[] = [];
+  for (const task of tasks) {
+    const rendered = await renderTaskPlanFromDb(basePath, milestoneId, sliceId, task.id);
+    taskPlanPaths.push(rendered.taskPlanPath);
+  }
+
+  return { planPath: absPath, taskPlanPaths, content };
+}
+
+export async function renderTaskPlanFromDb(
+  basePath: string,
+  milestoneId: string,
+  sliceId: string,
+  taskId: string,
+): Promise<{ taskPlanPath: string; content: string }> {
+  const task = getTask(milestoneId, sliceId, taskId);
+  if (!task) {
+    throw new Error(`task ${milestoneId}/${sliceId}/${taskId} not found`);
+  }
+
+  const tasksDir = resolveTasksDir(basePath, milestoneId, sliceId)
+    ?? join(gsdRoot(basePath), "milestones", milestoneId, "slices", sliceId, "tasks");
+  mkdirSync(tasksDir, { recursive: true });
+  const absPath = join(tasksDir, buildTaskFileName(taskId, "PLAN"));
+  const artifactPath = toArtifactPath(absPath, basePath);
+  const content = renderTaskPlanMarkdown(task);
+
+  await writeAndStore(absPath, artifactPath, content, {
+    artifact_type: "PLAN",
+    milestone_id: milestoneId,
+    slice_id: sliceId,
+    task_id: taskId,
+  });
+
+  return { taskPlanPath: absPath, content };
 }
 
 export async function renderRoadmapFromDb(
