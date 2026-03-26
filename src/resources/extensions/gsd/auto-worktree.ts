@@ -82,8 +82,10 @@ const ROOT_STATE_FILES = [
   "QUEUE.md",
   "completed-units.json",
   "metrics.json",
-  "preferences.md",  // #2684: without this, post_unit_hooks and all preference-driven
-                      // config silently stop working inside worktrees.
+  // NOTE: preferences.md is intentionally NOT in ROOT_STATE_FILES.
+  // Forward-sync (main → worktree) is handled explicitly in syncGsdStateToWorktree().
+  // Back-sync (worktree → main) must NEVER overwrite the project root's copy
+  // because the project root is authoritative for preferences (#2684).
 ] as const;
 
 /**

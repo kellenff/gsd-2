@@ -11,7 +11,7 @@ import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-test("#2684: ROOT_STATE_FILES includes preferences.md", () => {
+test("#2684: preferences.md is NOT in ROOT_STATE_FILES (forward-only sync)", () => {
   const srcPath = join(import.meta.dirname, "..", "auto-worktree.ts");
   const src = readFileSync(srcPath, "utf-8");
 
@@ -19,12 +19,20 @@ test("#2684: ROOT_STATE_FILES includes preferences.md", () => {
   assert.ok(constIdx !== -1, "ROOT_STATE_FILES constant exists");
 
   const arrayStart = src.indexOf("[", constIdx);
-  const arrayEnd = src.indexOf("]", arrayStart);
+  const arrayEnd = src.indexOf("] as const", arrayStart);
   const block = src.slice(arrayStart, arrayEnd);
 
+  // preferences.md must NOT be in ROOT_STATE_FILES — it is handled separately
+  // in syncGsdStateToWorktree() (forward-only, additive). Including it in
+  // ROOT_STATE_FILES would cause syncWorktreeStateBack() to overwrite the
+  // authoritative project root copy (#2684).
+  const entries = block.split("\n")
+    .map(l => l.trim())
+    .filter(l => l.startsWith('"') && l.includes(".md"));
+  const hasPrefs = entries.some(l => l.includes("preferences.md"));
   assert.ok(
-    block.includes("preferences.md"),
-    "preferences.md should be in ROOT_STATE_FILES list",
+    !hasPrefs,
+    "preferences.md must NOT be in ROOT_STATE_FILES (back-sync would overwrite root)",
   );
 });
 
