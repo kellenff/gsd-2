@@ -18,8 +18,8 @@ import { loadEffectiveGSDPreferences } from "./preferences.js";
 
 import {
   detectWorktreeName,
-  SLICE_BRANCH_RE,
 } from "./worktree.js";
+import { SLICE_BRANCH_RE, QUICK_BRANCH_RE, WORKFLOW_BRANCH_RE } from "./branch-patterns.js";
 import {
   nativeGetCurrentBranch,
   nativeDetectMainBranch,
@@ -243,17 +243,8 @@ export function readIntegrationBranch(basePath: string, milestoneId: string): st
  *
  * The file is committed immediately so the metadata is persisted in git.
  */
-/** Regex matching GSD quick-task branches: gsd/quick/<num>-<slug> */
-export const QUICK_BRANCH_RE = /^gsd\/quick\//;
-
-/**
- * Matches all GSD workflow-template branches: gsd/<templateId>/<slug>.
- *
- * Template IDs are lowercase alphanumeric with hyphens (e.g. hotfix, bugfix,
- * small-feature, dep-upgrade). The negative lookahead excludes milestone
- * branches (gsd/M001/... or gsd/M001-abc123/...) which use SLICE_BRANCH_RE.
- */
-export const WORKFLOW_BRANCH_RE = /^gsd\/(?!M\d)[\w-]+\//;
+/** Re-export for backward compatibility — canonical definitions in branch-patterns.ts */
+export { QUICK_BRANCH_RE, WORKFLOW_BRANCH_RE } from "./branch-patterns.js";
 
 export function writeIntegrationBranch(
   basePath: string,
