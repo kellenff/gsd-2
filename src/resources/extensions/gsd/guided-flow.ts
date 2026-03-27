@@ -211,7 +211,7 @@ type UIContext = ExtensionContext;
  * This is the only way the wizard triggers work — everything else is the LLM's job.
  *
  * When a unitType is provided, resolves the user's model preference for that
- * phase (e.g., models.planning → "plan-milestone") and applies it before
+ * phase (e.g., models.planning → "plan-milestone", models.discuss → "discuss-milestone") and applies it before
  * dispatching. This ensures guided-flow dispatches respect the same
  * per-phase model preferences that auto-mode uses.
  */
@@ -573,7 +573,7 @@ export async function showDiscuss(
         ? `${basePrompt}\n\n## Prior Discussion (Draft Seed)\n\n${draftContent}`
         : basePrompt;
       pendingAutoStart = { ctx, pi, basePath, milestoneId: mid, step: false };
-      await dispatchWorkflow(pi, seed, "gsd-discuss", ctx, "plan-milestone");
+      await dispatchWorkflow(pi, seed, "gsd-discuss", ctx, "discuss-milestone");
     } else if (choice === "discuss_fresh") {
       const discussMilestoneTemplates = inlineTemplate("context", "Context");
       const structuredQuestionsAvailable = pi.getActiveTools().includes("ask_user_questions") ? "true" : "false";
@@ -581,13 +581,13 @@ export async function showDiscuss(
       await dispatchWorkflow(pi, loadPrompt("guided-discuss-milestone", {
         milestoneId: mid, milestoneTitle, inlinedTemplates: discussMilestoneTemplates, structuredQuestionsAvailable,
         commitInstruction: buildDocsCommitInstruction(`docs(${mid}): milestone context from discuss`),
-      }), "gsd-discuss", ctx, "plan-milestone");
+      }), "gsd-discuss", ctx, "discuss-milestone");
     } else if (choice === "skip_milestone") {
       const milestoneIds = findMilestoneIds(basePath);
       const uniqueMilestoneIds = !!loadEffectiveGSDPreferences()?.preferences?.unique_milestone_ids;
       const nextId = nextMilestoneIdReserved(milestoneIds, uniqueMilestoneIds);
       pendingAutoStart = { ctx, pi, basePath, milestoneId: nextId, step: false };
-      await dispatchWorkflow(pi, buildDiscussPrompt(nextId, `New milestone ${nextId}.`, basePath), "gsd-run", ctx, "plan-milestone");
+      await dispatchWorkflow(pi, buildDiscussPrompt(nextId, `New milestone ${nextId}.`, basePath), "gsd-run", ctx, "discuss-milestone");
     }
     return;
   }
@@ -717,7 +717,7 @@ export async function showDiscuss(
     }
 
     const prompt = await buildDiscussSlicePrompt(mid, chosen.id, chosen.title, basePath, { rediscuss: isRediscuss });
-    await dispatchWorkflow(pi, prompt, "gsd-discuss", ctx, "plan-slice");
+    await dispatchWorkflow(pi, prompt, "gsd-discuss", ctx, "discuss-slice");
 
     // Wait for the discuss session to finish, then loop back to the picker
     await ctx.waitForIdle();
@@ -795,7 +795,7 @@ async function dispatchDiscussForMilestone(
   const prompt = draftContent
     ? `${basePrompt}\n\n## Prior Discussion (Draft Seed)\n\n${draftContent}`
     : basePrompt;
-  await dispatchWorkflow(pi, prompt, "gsd-discuss", ctx, "plan-milestone");
+  await dispatchWorkflow(pi, prompt, "gsd-discuss", ctx, "discuss-milestone");
 }
 
 // ─── Smart Entry Point ────────────────────────────────────────────────────────
@@ -935,7 +935,7 @@ async function handleMilestoneActions(
     await dispatchWorkflow(pi, buildDiscussPrompt(nextId,
       `New milestone ${nextId}.`,
       basePath
-    ), "gsd-run", ctx, "plan-milestone");
+    ), "gsd-run", ctx, "discuss-milestone");
     return true;
   }
 
@@ -1086,7 +1086,7 @@ export async function showSmartEntry(
       await dispatchWorkflow(pi, buildDiscussPrompt(nextId,
         `New project, milestone ${nextId}. Do NOT read or explore .gsd/ — it's empty scaffolding.`,
         basePath
-      ), "gsd-run", ctx, "plan-milestone");
+      ), "gsd-run", ctx, "discuss-milestone");
     } else {
       const choice = await showNextAction(ctx, {
         title: "GSD — Get Shit Done",
@@ -1107,7 +1107,7 @@ export async function showSmartEntry(
         await dispatchWorkflow(pi, buildDiscussPrompt(nextId,
           `New milestone ${nextId}.`,
           basePath
-        ), "gsd-run", ctx, "plan-milestone");
+        ), "gsd-run", ctx, "discuss-milestone");
       }
     }
     return;
@@ -1146,7 +1146,7 @@ export async function showSmartEntry(
       await dispatchWorkflow(pi, buildDiscussPrompt(nextId,
         `New milestone ${nextId}.`,
         basePath
-      ), "gsd-run", ctx, "plan-milestone");
+      ), "gsd-run", ctx, "discuss-milestone");
     } else if (choice === "status") {
       const { fireStatusViaCommand } = await import("./commands.js");
       await fireStatusViaCommand(ctx);
@@ -1194,7 +1194,7 @@ export async function showSmartEntry(
         ? `${basePrompt}\n\n## Prior Discussion (Draft Seed)\n\n${draftContent}`
         : basePrompt;
       pendingAutoStart = { ctx, pi, basePath, milestoneId, step: stepMode };
-      await dispatchWorkflow(pi, seed, "gsd-discuss", ctx, "plan-milestone");
+      await dispatchWorkflow(pi, seed, "gsd-discuss", ctx, "discuss-milestone");
     } else if (choice === "discuss_fresh") {
       const discussMilestoneTemplates = inlineTemplate("context", "Context");
       const structuredQuestionsAvailable = pi.getActiveTools().includes("ask_user_questions") ? "true" : "false";
@@ -1202,7 +1202,7 @@ export async function showSmartEntry(
       await dispatchWorkflow(pi, loadPrompt("guided-discuss-milestone", {
         milestoneId, milestoneTitle, inlinedTemplates: discussMilestoneTemplates, structuredQuestionsAvailable,
         commitInstruction: buildDocsCommitInstruction(`docs(${milestoneId}): milestone context from discuss`),
-      }), "gsd-discuss", ctx, "plan-milestone");
+      }), "gsd-discuss", ctx, "discuss-milestone");
     } else if (choice === "skip_milestone") {
       const milestoneIds = findMilestoneIds(basePath);
       const uniqueMilestoneIds = !!loadEffectiveGSDPreferences()?.preferences?.unique_milestone_ids;
@@ -1211,7 +1211,7 @@ export async function showSmartEntry(
       await dispatchWorkflow(pi, buildDiscussPrompt(nextId,
         `New milestone ${nextId}.`,
         basePath
-      ), "gsd-run", ctx, "plan-milestone");
+      ), "gsd-run", ctx, "discuss-milestone");
     }
     return;
   }
@@ -1286,7 +1286,7 @@ export async function showSmartEntry(
         await dispatchWorkflow(pi, loadPrompt("guided-discuss-milestone", {
           milestoneId, milestoneTitle, inlinedTemplates: discussMilestoneTemplates, structuredQuestionsAvailable,
           commitInstruction: buildDocsCommitInstruction(`docs(${milestoneId}): milestone context from discuss`),
-        }), "gsd-run", ctx, "plan-milestone");
+        }), "gsd-run", ctx, "discuss-milestone");
       } else if (choice === "skip_milestone") {
         const milestoneIds = findMilestoneIds(basePath);
         const uniqueMilestoneIds = !!loadEffectiveGSDPreferences()?.preferences?.unique_milestone_ids;
@@ -1295,7 +1295,7 @@ export async function showSmartEntry(
         await dispatchWorkflow(pi, buildDiscussPrompt(nextId,
           `New milestone ${nextId}.`,
           basePath
-        ), "gsd-run", ctx, "plan-milestone");
+        ), "gsd-run", ctx, "discuss-milestone");
       } else if (choice === "discard_milestone") {
         const confirmed = await showConfirm(ctx, {
           title: "Discard milestone?",
@@ -1421,7 +1421,7 @@ export async function showSmartEntry(
         }),
       }), "gsd-run", ctx, "plan-slice");
     } else if (choice === "discuss") {
-      await dispatchWorkflow(pi, await buildDiscussSlicePrompt(milestoneId, sliceId, sliceTitle, basePath, { rediscuss: hasContext }), "gsd-run", ctx, "plan-slice");
+      await dispatchWorkflow(pi, await buildDiscussSlicePrompt(milestoneId, sliceId, sliceTitle, basePath, { rediscuss: hasContext }), "gsd-run", ctx, "discuss-slice");
     } else if (choice === "research") {
       const researchTemplates = inlineTemplate("research", "Research");
       await dispatchWorkflow(pi, loadPrompt("guided-research-slice", {

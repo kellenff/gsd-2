@@ -56,15 +56,27 @@ export function resolveModelWithFallbacksForUnit(unitType: string): ResolvedMode
     case "replan-slice":
       phaseConfig = m.planning;
       break;
+    case "discuss-milestone":
+    case "discuss-slice":
+      phaseConfig = m.discuss ?? m.planning;
+      break;
     case "execute-task":
+    case "reactive-execute":
       phaseConfig = m.execution;
       break;
     case "execute-task-simple":
       phaseConfig = m.execution_simple ?? m.execution;
       break;
     case "complete-slice":
+    case "complete-milestone":
     case "run-uat":
       phaseConfig = m.completion;
+      break;
+    case "reassess-roadmap":
+    case "rewrite-docs":
+    case "gate-evaluate":
+    case "validate-milestone":
+      phaseConfig = m.validation ?? m.planning;
       break;
     default:
       // Subagent unit types (e.g., "subagent", "subagent/scout")
