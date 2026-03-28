@@ -1747,6 +1747,13 @@ export class InteractiveMode {
 			this.editor = this.defaultEditor;
 		}
 
+		// Ensure pasted image path handler is set on the active editor
+		if (!this.editor.onPasteImagePath) {
+			this.editor.onPasteImagePath = (filePath: string) => {
+				this.handlePastedImagePath(filePath);
+			};
+		}
+
 		this.editorContainer.addChild(this.editor as Component);
 		this.ui.setFocus(this.editor as Component);
 		this.ui.requestRender();
@@ -1933,6 +1940,11 @@ export class InteractiveMode {
 		this.defaultEditor.onPasteImage = () => {
 			this.handleClipboardImagePaste();
 		};
+
+		// Handle image file paths pasted via terminal emulator (e.g. iTerm2)
+		this.editor.onPasteImagePath = (filePath: string) => {
+			this.handlePastedImagePath(filePath);
+		};
 	}
 
 	private async handleClipboardImagePaste(): Promise<void> {
@@ -1956,6 +1968,43 @@ export class InteractiveMode {
 			this.ui.requestRender();
 		} catch {
 			// Silently ignore clipboard errors (may not have permission, etc.)
+		}
+	}
+
+	private static readonly MIME_BY_EXT: Record<string, string> = {
+		png: "image/png",
+		jpg: "image/jpeg",
+		jpeg: "image/jpeg",
+		gif: "image/gif",
+		webp: "image/webp",
+		bmp: "image/bmp",
+		tiff: "image/tiff",
+		tif: "image/tiff",
+		svg: "image/svg+xml",
+		heic: "image/heic",
+		heif: "image/heif",
+		avif: "image/avif",
+	};
+
+	private handlePastedImagePath(filePath: string): void {
+		try {
+			const data = fs.readFileSync(filePath);
+			const ext = path.extname(filePath).slice(1).toLowerCase();
+			const mimeType = InteractiveMode.MIME_BY_EXT[ext] ?? "image/png";
+
+			this.pendingImages.push({
+				type: "image",
+				data: data.toString("base64"),
+				mimeType,
+			});
+
+			const imageNum = this.pendingImages.length;
+			this.editor.insertTextAtCursor?.(`[Image #${imageNum}]`);
+			this.ui.requestRender();
+		} catch {
+			// Fall back to inserting the raw path if file can't be read
+			this.editor.insertTextAtCursor?.(filePath);
+			this.ui.requestRender();
 		}
 	}
 
