@@ -108,6 +108,52 @@ export function resolveModelWithFallbacksForUnit(unitType: string): ResolvedMode
 }
 
 /**
+ * Resolve the default session model from GSD preferences.
+ *
+ * Used at auto-mode bootstrap to override the session model that was
+ * determined by settings.json (defaultProvider/defaultModel).  When
+ * PREFERENCES.md (or project preferences) configures an `execution` model
+ * we treat that as the session default.  Falls back through execution →
+ * planning → first configured model.
+ *
+ * Returns `{ provider, id }` parsed from the `provider/model` format,
+ * or `undefined` if no model preference is configured.
+ */
+export function resolveDefaultSessionModel(): { provider: string; id: string } | undefined {
+  const prefs = loadEffectiveGSDPreferences();
+  if (!prefs?.preferences.models) return undefined;
+
+  const m = prefs.preferences.models as GSDModelConfigV2;
+
+  // Priority: execution → planning → first configured value
+  const candidates: Array<string | GSDPhaseModelConfig | undefined> = [
+    m.execution,
+    m.planning,
+    m.research,
+    m.discuss,
+    m.completion,
+    m.validation,
+    m.subagent,
+  ];
+
+  for (const cfg of candidates) {
+    if (!cfg) continue;
+    const modelStr = typeof cfg === "string"
+      ? cfg
+      : cfg.provider && !cfg.model.includes("/")
+        ? `${cfg.provider}/${cfg.model}`
+        : cfg.model;
+
+    if (modelStr.includes("/")) {
+      const slashIdx = modelStr.indexOf("/");
+      return { provider: modelStr.slice(0, slashIdx), id: modelStr.slice(slashIdx + 1) };
+    }
+  }
+
+  return undefined;
+}
+
+/**
  * Determines the next fallback model to try when the current model fails.
  * If the current model is not in the configured list, returns the primary model.
  * If the current model is the last in the list, returns undefined (exhausted).
