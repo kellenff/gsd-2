@@ -2,7 +2,9 @@
 // Centralized warning/error accumulator for the workflow engine pipeline.
 // Captures structured entries that the auto-loop can drain after each unit
 // to surface root causes for stuck loops, silent degradation, and blocked writes.
-// All entries are also persisted to .gsd/audit-log.jsonl for post-mortem analysis.
+// Error-severity entries are persisted to .gsd/audit-log.jsonl (sanitized) for
+// post-mortem analysis. Warnings are ephemeral (stderr + buffer only) to avoid
+// log amplification from expected-control-flow catch paths.
 //
 // Stderr policy: every logWarning/logError call writes immediately to stderr
 // for terminal visibility. This is intentional — unlike debug-logger (which is
@@ -243,15 +245,47 @@ function _push(
     _buffer.shift();
   }
 
-  // Persist to .gsd/audit-log.jsonl so entries survive context resets
-  if (_auditBasePath) {
+  // Persist errors to .gsd/audit-log.jsonl so they survive context resets.
+  // Only error-severity entries are persisted — warnings are ephemeral (stderr + buffer)
+  // to avoid log amplification from expected-control-flow catch paths.
+  if (_auditBasePath && severity === "error") {
     try {
       const auditDir = join(_auditBasePath, ".gsd");
       mkdirSync(auditDir, { recursive: true });
-      appendFileSync(join(auditDir, "audit-log.jsonl"), JSON.stringify(entry) + "\n", "utf-8");
+      const sanitized = _sanitizeForAudit(entry);
+      appendFileSync(join(auditDir, "audit-log.jsonl"), JSON.stringify(sanitized) + "\n", "utf-8");
     } catch (auditErr) {
       // Best-effort — never let audit write failures bubble up
       process.stderr.write(`[gsd:audit] failed to persist log entry: ${(auditErr as Error).message}\n`);
     }
   }
+}
+
+/**
+ * Sanitize a log entry before persisting to the audit JSONL file.
+ * Strips potentially sensitive context (raw paths, cwd, full error text)
+ * to avoid leaking local environment details into durable telemetry.
+ */
+function _sanitizeForAudit(entry: LogEntry): LogEntry {
+  const sanitized: LogEntry = {
+    ts: entry.ts,
+    severity: entry.severity,
+    component: entry.component,
+    // Truncate message to avoid persisting oversized raw error dumps
+    message: entry.message.length > 200 ? entry.message.slice(0, 200) + "…[truncated]" : entry.message,
+  };
+  if (entry.context) {
+    // Allowlist: only persist known-safe structured keys
+    const SAFE_KEYS = new Set(["fn", "tool", "mid", "sid", "tid", "worktree"]);
+    const filtered: Record<string, string> = {};
+    for (const [k, v] of Object.entries(entry.context)) {
+      if (SAFE_KEYS.has(k)) {
+        filtered[k] = v;
+      }
+    }
+    if (Object.keys(filtered).length > 0) {
+      sanitized.context = filtered;
+    }
+  }
+  return sanitized;
 }

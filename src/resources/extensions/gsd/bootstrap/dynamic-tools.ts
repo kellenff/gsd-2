@@ -104,16 +104,10 @@ export async function ensureDbOpen(): Promise<boolean> {
       return opened;
     }
 
-    logWarning("bootstrap", `ensureDbOpen failed — no .gsd directory found (resolvedPath=${resolveProjectRootDbPath(basePath)}, cwd=${basePath})`);
+    logWarning("bootstrap", "ensureDbOpen failed — no .gsd directory found");
     return false;
   } catch (err) {
-    const basePath = process.cwd();
-    const diagnostic = {
-      resolvedPath: resolveProjectRootDbPath(basePath),
-      cwd: basePath,
-      error: (err as Error).message ?? String(err),
-    };
-    logWarning("bootstrap", `ensureDbOpen failed — ${JSON.stringify(diagnostic)}`);
+    logWarning("bootstrap", `ensureDbOpen failed: ${(err as Error).message ?? String(err)}`);
     return false;
   }
 }
