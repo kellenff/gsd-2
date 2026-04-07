@@ -189,7 +189,7 @@ export async function getActiveMilestoneId(basePath: string): Promise<string | n
       const byId = new Map(allMilestones.map(m => [m.id, m]));
       for (const id of sortedIds) {
         const m = byId.get(id)!;
-        if (m.status === "complete" || m.status === "done" || m.status === "parked") continue;
+        if (isClosedStatus(m.status) || m.status === "parked") continue;
         return m.id;
       }
       return null;
@@ -442,13 +442,10 @@ export async function deriveStateFromDb(basePath: string): Promise<GSDState> {
       continue;
     }
 
-    // Check roadmap: all slices done means milestone is complete
-    const slices = getMilestoneSlices(m.id);
-    if (slices.length > 0 && slices.every(s => isStatusDone(s.status))) {
-      // All slices done but no summary — still counts as complete for dep resolution
-      // if a summary file exists
-      // Note: without summary file, the milestone is in validating/completing state, not complete
-    }
+    // Milestones with all slices done but no SUMMARY file are in
+    // validating/completing state — intentionally NOT added to
+    // completeMilestoneIds.  The SUMMARY file (checked above) is the
+    // terminal artifact that proves completion per #864.
   }
 
   // Phase 2: Build registry and find active milestone
@@ -954,7 +951,12 @@ export async function deriveStateFromDb(basePath: string): Promise<GSDState> {
   // ── REPLAN-TRIGGER detection ─────────────────────────────────────────
   if (!blockerTaskId) {
     const sliceRow = getSlice(activeMilestone.id, activeSlice.id);
-    if (sliceRow?.replan_triggered_at) {
+    // Check DB column first, fall back to disk trigger file when DB write
+    // was best-effort and failed (triage-resolution.ts dual-write gap).
+    const dbTriggered = !!sliceRow?.replan_triggered_at;
+    const diskTriggered = !dbTriggered &&
+      !!resolveSliceFile(basePath, activeMilestone.id, activeSlice.id, "REPLAN-TRIGGER");
+    if (dbTriggered || diskTriggered) {
       // Loop protection: if replan_history has entries, replan was already done
       const replanHistory = getReplanHistory(activeMilestone.id, activeSlice.id);
       if (replanHistory.length === 0) {
