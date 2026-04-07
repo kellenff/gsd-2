@@ -10,8 +10,7 @@ import {
   updateMilestoneStatus,
   getSliceTasks,
   insertMilestone,
-  insertSlice,
-  insertTask,
+  _getAdapter,
   insertVerificationEvidence,
   upsertDecision,
   openDatabase,
@@ -83,6 +82,10 @@ function replayEvents(events: WorkflowEvent[]): void {
     const p = event.params;
     // Normalize cmd format: completion tools write hyphens ("complete-task"),
     // legacy logs use underscores ("complete_task"). Accept both formats.
+    if (typeof event.cmd !== "string") {
+      logWarning("reconcile", `Event with non-string cmd skipped: ${JSON.stringify(event.cmd)}`);
+      continue;
+    }
     const cmd = event.cmd.replace(/-/g, "_");
     switch (cmd) {
       case "complete_task": {
@@ -138,7 +141,7 @@ function replayEvents(events: WorkflowEvent[]): void {
         break;
       }
       case "plan_milestone": {
-        // Replay milestone creation from worktree — INSERT OR IGNORE is safe
+        // Replay milestone creation — uses INSERT OR IGNORE (gsd-db's insertMilestone is safe)
         const milestoneId = p["milestoneId"] as string;
         if (milestoneId) {
           insertMilestone({ id: milestoneId, title: (p["title"] as string) ?? milestoneId });
@@ -146,21 +149,37 @@ function replayEvents(events: WorkflowEvent[]): void {
         break;
       }
       case "plan_slice": {
-        // Replay slice creation from worktree — INSERT OR IGNORE is safe
+        // Replay slice creation — strict INSERT OR IGNORE to avoid overwriting
+        // progressed status. insertSlice() uses ON CONFLICT DO UPDATE which
+        // could downgrade a completed slice back to pending.
         const milestoneId = p["milestoneId"] as string;
         const sliceId = p["sliceId"] as string;
         if (milestoneId && sliceId) {
-          insertSlice({ id: sliceId, milestoneId, title: (p["title"] as string) ?? sliceId });
+          const adapter = _getAdapter();
+          if (adapter) {
+            adapter.prepare(
+              `INSERT OR IGNORE INTO slices (milestone_id, id, title, status, created_at)
+               VALUES (:mid, :sid, :title, 'pending', :ts)`,
+            ).run({ ":mid": milestoneId, ":sid": sliceId, ":title": (p["title"] as string) ?? sliceId, ":ts": event.ts });
+          }
         }
         break;
       }
       case "plan_task": {
-        // Replay task creation from worktree — INSERT OR IGNORE is safe
+        // Replay task creation — strict INSERT OR IGNORE to avoid overwriting
+        // progressed status. insertTask() uses ON CONFLICT DO UPDATE which
+        // could downgrade a done/in-progress task back to pending.
         const milestoneId = p["milestoneId"] as string;
         const sliceId = p["sliceId"] as string;
         const taskId = p["taskId"] as string;
         if (milestoneId && sliceId && taskId) {
-          insertTask({ id: taskId, sliceId, milestoneId, title: (p["title"] as string) ?? taskId });
+          const adapter = _getAdapter();
+          if (adapter) {
+            adapter.prepare(
+              `INSERT OR IGNORE INTO tasks (milestone_id, slice_id, id, title, status, created_at)
+               VALUES (:mid, :sid, :tid, :title, 'pending', :ts)`,
+            ).run({ ":mid": milestoneId, ":sid": sliceId, ":tid": taskId, ":title": (p["title"] as string) ?? taskId, ":ts": event.ts });
+          }
         }
         break;
       }
@@ -202,6 +221,7 @@ export function extractEntityKey(
 ): { type: string; id: string } | null {
   const p = event.params;
   // Normalize cmd format: accept both hyphens and underscores
+  if (typeof event.cmd !== "string") return null;
   const cmd = event.cmd.replace(/-/g, "_");
 
   switch (cmd) {
