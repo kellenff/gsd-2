@@ -19,7 +19,7 @@ export function getSessionId(): string {
 // ─── Event Types ─────────────────────────────────────────────────────────
 
 export interface WorkflowEvent {
-  cmd: string;           // e.g. "complete_task"
+  cmd: string;           // e.g. "complete-task" (canonical: hyphens; legacy: underscores — both accepted by replay)
   params: Record<string, unknown>;
   ts: string;            // ISO 8601
   hash: string;          // content hash (hex, 16 chars)

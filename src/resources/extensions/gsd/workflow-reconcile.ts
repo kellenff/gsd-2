@@ -7,6 +7,7 @@ import {
   transaction,
   updateTaskStatus,
   updateSliceStatus,
+  updateMilestoneStatus,
   getSliceTasks,
   insertVerificationEvidence,
   upsertDecision,
@@ -74,7 +75,10 @@ function replayEvents(events: WorkflowEvent[]): void {
   transaction(() => {
   for (const event of events) {
     const p = event.params;
-    switch (event.cmd) {
+    // Normalize cmd format: completion tools write hyphens ("complete-task"),
+    // legacy logs use underscores ("complete_task"). Accept both formats.
+    const cmd = event.cmd.replace(/-/g, "_");
+    switch (cmd) {
       case "complete_task": {
         const milestoneId = p["milestoneId"] as string;
         const sliceId = p["sliceId"] as string;
@@ -119,6 +123,14 @@ function replayEvents(events: WorkflowEvent[]): void {
         replaySliceComplete(milestoneId, sliceId, event.ts);
         break;
       }
+      case "complete_milestone": {
+        const milestoneId = p["milestoneId"] as string;
+        // Milestone completion via worktree replay — update status to complete
+        if (milestoneId) {
+          updateMilestoneStatus(milestoneId, "complete", event.ts);
+        }
+        break;
+      }
       case "plan_slice": {
         // plan_slice events are informational — slice should already exist.
         // No DB mutation needed during replay (the slice was inserted at plan time).
@@ -139,7 +151,7 @@ function replayEvents(events: WorkflowEvent[]): void {
         break;
       }
       default:
-        // Unknown commands are silently skipped during replay
+        logWarning("reconcile", `Unknown event cmd during replay: "${event.cmd}" — skipped`);
         break;
     }
   }
@@ -157,8 +169,10 @@ export function extractEntityKey(
   event: WorkflowEvent,
 ): { type: string; id: string } | null {
   const p = event.params;
+  // Normalize cmd format: accept both hyphens and underscores
+  const cmd = event.cmd.replace(/-/g, "_");
 
-  switch (event.cmd) {
+  switch (cmd) {
     case "complete_task":
     case "start_task":
     case "report_blocker":
@@ -170,6 +184,11 @@ export function extractEntityKey(
     case "complete_slice":
       return typeof p["sliceId"] === "string"
         ? { type: "slice", id: p["sliceId"] }
+        : null;
+
+    case "complete_milestone":
+      return typeof p["milestoneId"] === "string"
+        ? { type: "milestone", id: p["milestoneId"] }
         : null;
 
     case "plan_slice":
