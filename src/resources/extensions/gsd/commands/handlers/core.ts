@@ -84,8 +84,8 @@ export async function handleStatus(ctx: ExtensionCommandContext): Promise<void> 
   }
 
   const { GSDDashboardOverlay } = await import("../../dashboard-overlay.js");
-  const result = await ctx.ui.custom<void>(
-    (tui, theme, _kb, done) => new GSDDashboardOverlay(tui, theme, () => done()),
+  const result = await ctx.ui.custom<boolean>(
+    (tui, theme, _kb, done) => new GSDDashboardOverlay(tui, theme, () => done(true)),
     {
       overlay: true,
       overlayOptions: {
@@ -113,8 +113,8 @@ export async function handleVisualize(ctx: ExtensionCommandContext): Promise<voi
   }
 
   const { GSDVisualizerOverlay } = await import("../../visualizer-overlay.js");
-  const result = await ctx.ui.custom<void>(
-    (tui, theme, _kb, done) => new GSDVisualizerOverlay(tui, theme, () => done()),
+  const result = await ctx.ui.custom<boolean>(
+    (tui, theme, _kb, done) => new GSDVisualizerOverlay(tui, theme, () => done(true)),
     {
       overlay: true,
       overlayOptions: {
@@ -221,8 +221,8 @@ export async function handleCoreCommand(trimmed: string, ctx: ExtensionCommandCo
   }
   if (trimmed === "show-config") {
     const { GSDConfigOverlay, formatConfigText } = await import("../../config-overlay.js");
-    const result = await ctx.ui.custom<void>(
-      (tui, theme, _kb, done) => new GSDConfigOverlay(tui, theme, () => done()),
+    const result = await ctx.ui.custom<boolean>(
+      (tui, theme, _kb, done) => new GSDConfigOverlay(tui, theme, () => done(true)),
       {
         overlay: true,
         overlayOptions: {
