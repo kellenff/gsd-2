@@ -18,6 +18,7 @@ import { ensureManagedTools } from './tool-bootstrap.js'
 import { loadStoredEnvKeys } from './wizard.js'
 import { migratePiCredentials } from './pi-migration.js'
 import { validateConfiguredModel } from './startup-model-validation.js'
+import { shouldMigrateAnthropicToClaudeCode } from './provider-migrations.js'
 import { shouldRunOnboarding, runOnboarding } from './onboarding.js'
 import chalk from 'chalk'
 import { checkForUpdates } from './update-check.js'
@@ -470,7 +471,11 @@ if (isPrintMode) {
   // Migrate anthropic OAuth users to claude-code provider when CLI is available (#3772).
   // Anthropic blocks third-party apps from using subscription quotas — routing through
   // the local claude CLI binary is TOS-compliant.
-  if (modelRegistry.isProviderRequestReady('claude-code') && settingsManager.getDefaultProvider() === 'anthropic') {
+  if (shouldMigrateAnthropicToClaudeCode({
+    authStorage,
+    isClaudeCodeReady: modelRegistry.isProviderRequestReady('claude-code'),
+    defaultProvider: settingsManager.getDefaultProvider(),
+  })) {
     const currentModelId = settingsManager.getDefaultModel()
     if (currentModelId) {
       const ccModel = modelRegistry.find('claude-code', currentModelId)
@@ -662,7 +667,11 @@ markStartup('createAgentSession')
 // Migrate anthropic OAuth users to claude-code provider when CLI is available (#3772).
 // Anthropic blocks third-party apps from using subscription quotas — routing through
 // the local claude CLI binary is TOS-compliant.
-if (modelRegistry.isProviderRequestReady('claude-code') && settingsManager.getDefaultProvider() === 'anthropic') {
+if (shouldMigrateAnthropicToClaudeCode({
+  authStorage,
+  isClaudeCodeReady: modelRegistry.isProviderRequestReady('claude-code'),
+  defaultProvider: settingsManager.getDefaultProvider(),
+})) {
   const currentModelId = settingsManager.getDefaultModel()
   if (currentModelId) {
     const ccModel = modelRegistry.find('claude-code', currentModelId)
