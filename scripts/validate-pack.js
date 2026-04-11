@@ -26,6 +26,7 @@ function runNpm(args, options = {}) {
   return execFileSync(getNpmCommand(), args, {
     cwd: ROOT,
     encoding: 'utf8',
+    shell: process.platform === 'win32',
     stdio: ['pipe', 'pipe', 'pipe'],
     maxBuffer: DEFAULT_MAX_BUFFER,
     env: {
@@ -125,6 +126,7 @@ try {
     const installOutput = execFileSync(getNpmCommand(), ['install', tarball], {
       cwd: installDir,
       encoding: 'utf8',
+      shell: process.platform === 'win32',
       stdio: ['pipe', 'pipe', 'pipe'],
       maxBuffer: DEFAULT_MAX_BUFFER,
       env: {
