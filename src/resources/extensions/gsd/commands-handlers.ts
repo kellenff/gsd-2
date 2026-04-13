@@ -28,6 +28,11 @@ import { loadPrompt } from "./prompt-loader.js";
 const UPDATE_REGISTRY_URL = "https://registry.npmjs.org/gsd-pi/latest";
 const UPDATE_FETCH_TIMEOUT_MS = 5000;
 
+function resolveInstallCommand(pkg: string): string {
+  if ('bun' in process.versions) return `bun add -g ${pkg}`;
+  return `npm install -g ${pkg}`;
+}
+
 async function fetchLatestVersionForCommand(): Promise<string | null> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), UPDATE_FETCH_TIMEOUT_MS);
@@ -431,8 +436,9 @@ export async function handleUpdate(ctx: ExtensionCommandContext): Promise<void> 
 
   ctx.ui.notify(`Updating: v${current} → v${latest}...`, "info");
 
+  const installCmd = resolveInstallCommand(`${NPM_PACKAGE}@latest`);
   try {
-    execSync(`npm install -g ${NPM_PACKAGE}@latest`, {
+    execSync(installCmd, {
       stdio: ["ignore", "pipe", "ignore"],
     });
     ctx.ui.notify(
@@ -441,7 +447,7 @@ export async function handleUpdate(ctx: ExtensionCommandContext): Promise<void> 
     );
   } catch {
     ctx.ui.notify(
-      `Update failed. Try manually: npm install -g ${NPM_PACKAGE}@latest`,
+      `Update failed. Try manually: ${installCmd}`,
       "error",
     );
   }
