@@ -1,7 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { MODELS } from "./models.generated.js";
-import { getModel, getModels, getProviders } from "./models.js";
+import { MODELS, getModel, getModels, getProviders } from "./models/index.js";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Regression: qwen/qwen3.6-plus missing from OpenRouter (issue #3582)
