@@ -96,3 +96,57 @@ jobs:
           else
             npm publish --tag next
           fi
+
+  next-verify:
+    name: Next Verify (installed package)
+    needs: next-publish
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.ref }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          cache: 'npm'
+
+      - name: Install published gsd-pi@next globally (with registry propagation retry)
+        env:
+          NEXT_VERSION: ${{ needs.next-publish.outputs.next-version }}
+        run: |
+          for i in 1 2 3 4 5 6; do
+            npm install -g "gsd-pi@${NEXT_VERSION}" && exit 0
+            echo "Attempt $i failed — waiting 10s for npm registry propagation..."
+            sleep 10
+          done
+          echo "::error::Failed to install gsd-pi@${NEXT_VERSION} after 6 attempts. The @next tag may point at a broken artifact — deprecate it with: npm deprecate gsd-pi@${NEXT_VERSION} 'broken build'"
+          exit 1
+
+      - name: Run smoke tests (against installed binary)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          export GSD_SMOKE_BINARY=$(which gsd)
+          npm run test:smoke
+
+      - name: Install repo dependencies (for fixture + regression harnesses)
+        run: npm ci
+
+      - name: Run fixture tests
+        run: npm run test:fixtures
+
+      - name: Run live regression tests (against installed binary)
+        run: |
+          export GSD_SMOKE_BINARY=$(which gsd)
+          npm run test:live-regression
+
+      - name: Warn on verify failure
+        if: failure()
+        env:
+          NEXT_VERSION: ${{ needs.next-publish.outputs.next-version }}
+        run: |
+          echo "::error::Post-publish verification failed for gsd-pi@${NEXT_VERSION}. The @next tag still points at this version on npm."
+          echo "::error::Recommended actions: (1) investigate the failing step above, (2) deprecate the broken version with 'npm deprecate gsd-pi@${NEXT_VERSION} \"broken build; see Actions run\"', (3) cut a fix and re-run Next Publish."
+          exit 1
