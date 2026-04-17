@@ -31,8 +31,6 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
       env:
-        BLACKSMITH_CACHE_TOKEN: ${{ env.BLACKSMITH_CACHE_TOKEN }}
-        BLACKSMITH_CACHE_URL: ${{ env.BLACKSMITH_CACHE_URL }}
         GITHUB_REPO_NAME: ${{ github.repository }}
     outputs:
       next-version: ${{ steps.stamp.outputs.version }}
