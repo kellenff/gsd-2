@@ -127,8 +127,6 @@ jobs:
           exit 1
 
       - name: Run smoke tests (against installed binary)
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           export GSD_SMOKE_BINARY=$(which gsd)
           npm run test:smoke
