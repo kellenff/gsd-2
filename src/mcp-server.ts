@@ -1,6 +1,11 @@
 /**
  * Minimal tool interface matching GSD's AgentTool shape.
  * Avoids a direct dependency on @gsd/pi-agent-core from this compiled module.
+ *
+ * `details` and `isError` are optional fields that runtime tool implementations
+ * may populate. The MCP transport drops non-standard fields, so the wrapper at
+ * the call site mirrors `details` into `structuredContent` and forwards
+ * `isError` directly. See #4472.
  */
 export interface McpToolDef {
   name: string
@@ -13,6 +18,8 @@ export interface McpToolDef {
     onUpdate?: unknown,
   ): Promise<{
     content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>
+    details?: Record<string, unknown>
+    isError?: boolean
   }>
 }
 
@@ -126,17 +133,15 @@ export async function startMcpServer(options: {
       // channel. The protocol drops non-standard fields on the wire, so tools
       // that populate `details` for client-side renderers (e.g. save_gate_result)
       // would otherwise arrive empty on the other side. See #4472.
-      const runtimeDetails = (result as { details?: unknown }).details
-      const runtimeIsError = (result as { isError?: unknown }).isError === true
       const base: Record<string, unknown> = { content }
       if (
-        runtimeDetails !== null
-        && typeof runtimeDetails === 'object'
-        && !Array.isArray(runtimeDetails)
+        result.details !== undefined
+        && result.details !== null
+        && !Array.isArray(result.details)
       ) {
-        base.structuredContent = runtimeDetails
+        base.structuredContent = result.details
       }
-      if (runtimeIsError) base.isError = true
+      if (result.isError === true) base.isError = true
       return base
     } catch (err: unknown) {
       // AbortError from a cancelled tool surfaces as a normal error — MCP

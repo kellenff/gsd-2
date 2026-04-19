@@ -1238,10 +1238,13 @@ describe("workflow MCP tools", () => {
       });
       assert.match((gateResult as any).content[0].text as string, /Gate Q3 result saved/);
       // #4472: executor `details` must be adapted to MCP `structuredContent`
-      // so it survives the protocol transport intact.
+      // so it survives the protocol transport intact. Asserting property
+      // *absence* rather than `=== undefined` so a future regression that
+      // explicitly sets `details: undefined` (rather than removing it) still
+      // fails this contract test.
       assert.equal(
-        (gateResult as any).details,
-        undefined,
+        Object.prototype.hasOwnProperty.call(gateResult, "details"),
+        false,
         "executor `details` field must be stripped from MCP tool result",
       );
       assert.deepEqual(
