@@ -54,7 +54,9 @@ export type LogComponent =
   | "registry"      // Rule registry hook state
   | "renderer"      // Markdown renderer and projections
   | "safety"        // LLM safety harness
-  | "ecosystem";    // GSD ecosystem extension loader and dispatch
+  | "ecosystem"     // GSD ecosystem extension loader and dispatch
+  | "memory-embeddings" // Memory layer embedding generation
+  | "memory-ingest";    // Memory layer ingestion pipeline
 
 export interface LogEntry {
   ts: string;
