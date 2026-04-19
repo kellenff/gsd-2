@@ -1675,7 +1675,9 @@ export function registerWorkflowTools(server: McpToolServer): void {
   const captureThoughtSchema = z.object({
     projectDir: z.string().optional(),
     category: MEMORY_CATEGORY,
-    content: z.string(),
+    // Reject empty / whitespace-only content at the schema layer so the LLM
+    // never produces a memory row with no searchable text.
+    content: z.string().trim().min(1, "content must be a non-empty trimmed string"),
     confidence: z.number().min(0.1).max(0.99).optional(),
     tags: z.array(z.string()).optional(),
     scope: z.string().optional(),
@@ -1709,7 +1711,9 @@ export function registerWorkflowTools(server: McpToolServer): void {
 
   const memoryQuerySchema = z.object({
     projectDir: z.string().optional(),
-    query: z.string(),
+    // Match the documented "2+ char terms" contract in the in-process
+    // memory_query tool — reject sub-2-char queries at the schema layer.
+    query: z.string().trim().min(2, "query must be at least 2 characters"),
     k: z.number().int().min(1).max(50).optional(),
     category: MEMORY_CATEGORY.optional(),
     scope: z.string().optional(),
@@ -1749,7 +1753,10 @@ export function registerWorkflowTools(server: McpToolServer): void {
     memoryId: z.string().optional(),
     depth: z.number().int().min(0).max(5).optional(),
     rel: z.enum(["related_to", "depends_on", "contradicts", "elaborates", "supersedes"]).optional(),
-  });
+  }).refine(
+    (val) => val.mode !== "query" || (typeof val.memoryId === "string" && val.memoryId.trim().length > 0),
+    { message: "memoryId is required and must be non-empty when mode=query", path: ["memoryId"] },
+  );
   const memoryGraphParams = {
     projectDir: z.string().optional().describe("Absolute path to the project directory (defaults to MCP server cwd)"),
     mode: z.enum(["build", "query"]).describe("build = recompute graph (placeholder), query = inspect edges"),

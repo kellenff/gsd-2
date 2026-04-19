@@ -706,6 +706,10 @@ export function applyMemoryActions(
               source_unit_id: unitId,
               scope: action.scope,
               tags: action.tags,
+              // ADR-013: forward structured payload through the action layer so
+              // bulk applyMemoryActions callers (extraction, ingestion) don't
+              // silently drop it.
+              structuredFields: action.structuredFields ?? null,
             });
             break;
           case 'UPDATE':

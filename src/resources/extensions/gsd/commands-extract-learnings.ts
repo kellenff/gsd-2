@@ -323,8 +323,10 @@ export function buildExtractLearningsPrompt(ctx: ExtractLearningsPromptContext):
 
 Analyse the milestone artefacts inlined below and follow the Structured
 Learnings Extraction procedure in full. The procedure writes LEARNINGS.md
-and routes the durable subset into \`.gsd/KNOWLEDGE.md\` and the DECISIONS
-database so future milestone dispatches benefit from what was learned here.
+as the milestone-local audit trail and persists the durable subset into the
+GSD memory store via \`capture_thought\` (categories: pattern, gotcha or
+convention, architecture). The memory store is the single source of truth
+for cross-session durable knowledge (ADR-013).
 
 ---
 

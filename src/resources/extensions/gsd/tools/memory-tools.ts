@@ -125,6 +125,11 @@ function normalizeTags(value: unknown): string[] {
 function normalizeStructuredFields(value: unknown): Record<string, unknown> | null {
   if (value == null) return null;
   if (typeof value !== "object" || Array.isArray(value)) return null;
+  // Only accept plain objects (Object.prototype or null prototype). Class
+  // instances and exotic objects won't round-trip cleanly through JSON, so
+  // reject them here instead of producing a partially-serialized payload.
+  const proto = Object.getPrototypeOf(value);
+  if (proto !== null && proto !== Object.prototype) return null;
   return value as Record<string, unknown>;
 }
 
