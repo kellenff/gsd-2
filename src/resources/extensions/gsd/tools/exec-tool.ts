@@ -11,7 +11,7 @@ import {
   type ExecSandboxRequest,
   type ExecSandboxResult,
 } from "../exec-sandbox.js";
-import type { ContextModeConfig } from "../preferences-types.js";
+import { isContextModeEnabled, type ContextModeConfig } from "../preferences-types.js";
 
 export interface ExecToolParams {
   runtime: ExecSandboxRequest["runtime"];
@@ -74,7 +74,7 @@ function clampNumber(value: unknown, fallback: number, min: number, max: number)
 }
 
 function isEnabled(prefs: ExecToolDeps["preferences"]): boolean {
-  return prefs?.context_mode?.enabled === true;
+  return isContextModeEnabled(prefs);
 }
 
 function disabledResult(): ToolExecutionResult {
@@ -83,8 +83,8 @@ function disabledResult(): ToolExecutionResult {
       {
         type: "text",
         text:
-          "gsd_exec is disabled. Set `context_mode.enabled: true` in .gsd/PREFERENCES.md to opt in " +
-          "to sandboxed tool-output execution.",
+          "gsd_exec is disabled by `context_mode.enabled: false` in preferences. Remove that " +
+          "override (or set it to true) to re-enable sandboxed tool-output execution.",
       },
     ],
     details: { operation: "gsd_exec", error: "context_mode_disabled" },

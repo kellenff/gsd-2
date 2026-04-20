@@ -27,7 +27,7 @@ export function executeResume(
           type: "text",
           text:
             "No snapshot found at .gsd/last-snapshot.md. The snapshot is written automatically " +
-            "on session_before_compact when context_mode.enabled=true.",
+            "on session_before_compact (enabled by default; set context_mode.enabled=false to opt out).",
         },
       ],
       details: { operation: "gsd_resume", found: false },

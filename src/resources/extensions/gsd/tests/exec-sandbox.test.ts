@@ -6,6 +6,7 @@ import { join } from 'node:path';
 
 import { EXEC_DEFAULTS, runExecSandbox, type ExecSandboxOptions } from '../exec-sandbox.ts';
 import { buildExecOptions, executeGsdExec } from '../tools/exec-tool.ts';
+import { isContextModeEnabled } from '../preferences-types.ts';
 
 function freshBase(): string {
   return mkdtempSync(join(tmpdir(), 'gsd-exec-test-'));
@@ -115,12 +116,42 @@ test('runExecSandbox: node runtime executes JS', async () => {
 
 // ── exec-tool executor ────────────────────────────────────────────────────
 
-test('executeGsdExec: blocked when context_mode.enabled is not set', async () => {
+test('executeGsdExec: runs by default when context_mode is unset', async () => {
   const base = freshBase();
   try {
     const result = await executeGsdExec(
-      { runtime: 'bash', script: 'echo hi' },
+      { runtime: 'bash', script: 'echo default-on-run' },
       { baseDir: base, preferences: {} },
+    );
+    assert.ok(!result.isError, 'should succeed with no preferences');
+    assert.equal(result.details.operation, 'gsd_exec');
+    assert.equal(result.details.exit_code, 0);
+    assert.ok(result.content[0].text.includes('default-on-run'));
+  } finally {
+    cleanup(base);
+  }
+});
+
+test('executeGsdExec: runs when preferences is null (fresh project)', async () => {
+  const base = freshBase();
+  try {
+    const result = await executeGsdExec(
+      { runtime: 'bash', script: 'echo null-prefs-run' },
+      { baseDir: base, preferences: null },
+    );
+    assert.ok(!result.isError, 'null preferences should not disable');
+    assert.ok(result.content[0].text.includes('null-prefs-run'));
+  } finally {
+    cleanup(base);
+  }
+});
+
+test('executeGsdExec: blocked only when context_mode.enabled=false', async () => {
+  const base = freshBase();
+  try {
+    const result = await executeGsdExec(
+      { runtime: 'bash', script: 'echo should-not-run' },
+      { baseDir: base, preferences: { context_mode: { enabled: false } } },
     );
     assert.equal(result.isError, true);
     assert.equal((result.details as { error?: string }).error, 'context_mode_disabled');
@@ -129,17 +160,15 @@ test('executeGsdExec: blocked when context_mode.enabled is not set', async () =>
   }
 });
 
-test('executeGsdExec: runs and returns digest when enabled', async () => {
+test('executeGsdExec: runs when enabled explicitly set to true', async () => {
   const base = freshBase();
   try {
     const result = await executeGsdExec(
-      { runtime: 'bash', script: 'echo enabled-run' },
+      { runtime: 'bash', script: 'echo explicit-on' },
       { baseDir: base, preferences: { context_mode: { enabled: true } } },
     );
-    assert.ok(!result.isError, 'should succeed');
-    assert.equal(result.details.operation, 'gsd_exec');
-    assert.equal(result.details.exit_code, 0);
-    assert.ok(result.content[0].text.includes('enabled-run'));
+    assert.ok(!result.isError);
+    assert.ok(result.content[0].text.includes('explicit-on'));
   } finally {
     cleanup(base);
   }
@@ -157,6 +186,15 @@ test('executeGsdExec: rejects empty script', async () => {
   } finally {
     cleanup(base);
   }
+});
+
+test('isContextModeEnabled: defaults to true; only explicit false disables', () => {
+  assert.equal(isContextModeEnabled(undefined), true, 'undefined prefs → on');
+  assert.equal(isContextModeEnabled(null), true, 'null prefs → on');
+  assert.equal(isContextModeEnabled({}), true, 'empty prefs → on');
+  assert.equal(isContextModeEnabled({ context_mode: {} }), true, 'empty block → on');
+  assert.equal(isContextModeEnabled({ context_mode: { enabled: true } }), true);
+  assert.equal(isContextModeEnabled({ context_mode: { enabled: false } }), false);
 });
 
 test('buildExecOptions: clamps out-of-range values to safe defaults', () => {

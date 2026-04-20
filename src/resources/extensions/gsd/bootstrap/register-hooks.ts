@@ -234,8 +234,9 @@ export function registerHooks(
   pi.on("session_before_compact", async () => {
     try {
       const { loadEffectiveGSDPreferences } = await import("../preferences.js");
+      const { isContextModeEnabled } = await import("../preferences-types.js");
       const prefs = loadEffectiveGSDPreferences();
-      if (prefs?.preferences.context_mode?.enabled !== true) return;
+      if (!isContextModeEnabled(prefs?.preferences)) return;
       const { writeCompactionSnapshot } = await import("../compaction-snapshot.js");
       const { ensureDbOpen } = await import("./dynamic-tools.js");
       await ensureDbOpen();

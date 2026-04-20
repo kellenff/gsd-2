@@ -20,7 +20,8 @@ export function registerExecTools(pi: ExtensionAPI): void {
       "Run a short script (bash/node/python) in a subprocess. Full stdout/stderr persist to " +
       ".gsd/exec/<id>.{stdout,stderr,meta.json}; only a short digest returns in context. Use " +
       "this instead of reading many files or emitting large tool outputs — e.g. have the script " +
-      "count/grep/summarize and log the finding. Opt-in via preferences.context_mode.enabled.",
+      "count/grep/summarize and log the finding. Enabled by default; opt out via " +
+      "preferences.context_mode.enabled=false.",
     promptSnippet:
       "Run a bash/node/python script in a sandbox; full output is saved to disk and only a digest returns",
     promptGuidelines: [

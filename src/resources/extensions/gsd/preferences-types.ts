@@ -39,7 +39,7 @@ export interface ContextManagementConfig {
  * independent implementation — no upstream code is incorporated.
  */
 export interface ContextModeConfig {
-  /** Master switch. Default: false (opt-in). */
+  /** Master switch. Default: true (opt-out via `enabled: false`). */
   enabled?: boolean;
   /** Per-invocation timeout in milliseconds. Default: 30_000. Range: 1_000–600_000. */
   exec_timeout_ms?: number;
@@ -49,6 +49,15 @@ export interface ContextModeConfig {
   exec_digest_chars?: number;
   /** Environment variables forwarded to sandboxed processes (case-sensitive names). PATH and HOME are always forwarded. */
   exec_env_allowlist?: string[];
+}
+
+/**
+ * Resolve whether context-mode features (gsd_exec sandbox + compaction
+ * snapshot) should be active. Default is ON: missing config or missing
+ * `enabled` is treated as true. Only `enabled: false` disables.
+ */
+export function isContextModeEnabled(prefs: { context_mode?: ContextModeConfig } | null | undefined): boolean {
+  return prefs?.context_mode?.enabled !== false;
 }
 import type { GitHubSyncConfig } from "../github-sync/types.js";
 
