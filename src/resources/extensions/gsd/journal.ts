@@ -12,8 +12,17 @@
  * - Silent failure: journal writes never throw — absence of events is the failure signal
  */
 
-import { appendFileSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
+import {
+  appendFileSync,
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+} from "node:fs";
 import { join } from "node:path";
+import { withFileLockSync } from "./file-lock.js";
 import { gsdRoot } from "./paths.js";
 import { buildAuditEnvelope, emitUokAuditEvent } from "./uok/audit.js";
 import { isUnifiedAuditEnabled } from "./uok/audit-toggle.js";
@@ -89,7 +98,19 @@ export function emitJournalEvent(basePath: string, entry: JournalEntry): void {
     mkdirSync(journalDir, { recursive: true });
     const dateStr = entry.ts.slice(0, 10);
     const filePath = join(journalDir, `${dateStr}.jsonl`);
-    appendFileSync(filePath, JSON.stringify(entry) + "\n");
+    // Ensure file exists so proper-lockfile can acquire a lock against it.
+    if (!existsSync(filePath)) closeSync(openSync(filePath, "a"));
+    // onLocked: "skip" — journal writes are best-effort. POSIX O_APPEND
+    // atomicity still protects small entries; the lock mainly serializes
+    // larger writes and gives cross-process exclusivity on platforms where
+    // O_APPEND semantics are weaker (Windows).
+    withFileLockSync(
+      filePath,
+      () => {
+        appendFileSync(filePath, JSON.stringify(entry) + "\n");
+      },
+      { onLocked: "skip" },
+    );
   } catch {
     // Silent failure — journal must never break auto-mode
   }
