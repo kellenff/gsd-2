@@ -24,6 +24,7 @@ import { printHelp, printSubcommandHelp } from './help-text.js'
 import { applySecurityOverrides } from './security-overrides.js'
 import { validateConfiguredModel } from './startup-model-validation.js'
 import {
+  buildHeadlessAutoArgs,
   parseCliArgs,
   runWebCliBranch,
   migrateLegacyFlatSessions,
@@ -413,7 +414,7 @@ async function runHeadlessFromAuto(headlessArgs: string[]): Promise<never> {
 // Without this, `gsd auto` falls through to the interactive TUI which hangs
 // when stdin/stdout are piped (non-TTY environments).
 if (cliFlags.messages[0] === 'auto') {
-  await runHeadlessFromAuto(cliFlags.messages)
+  await runHeadlessFromAuto(buildHeadlessAutoArgs(cliFlags))
 }
 
 // Pi's tool bootstrap can mis-detect already-installed fd/rg on some systems

@@ -26,7 +26,7 @@ import { buildGraph, writeGraph, writeSnapshot, graphStatus, graphQuery, graphDi
 import { resolveGsdRoot } from './readers/paths.js';
 import { runDoctorLite } from './readers/doctor-lite.js';
 import { registerWorkflowTools, validateProjectDir } from './workflow-tools.js';
-import { applySecrets, checkExistingEnvKeys, detectDestination } from './env-writer.js';
+import { applySecrets, checkExistingEnvKeys, detectDestination, resolveProjectEnvFilePath } from './env-writer.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -689,7 +689,7 @@ export async function createMcpServer(sessionManager: SessionManager): Promise<{
 
       try {
         const resolvedProjectDir = validateProjectDir(projectDir);
-        const resolvedEnvPath = resolve(resolvedProjectDir, envFilePath ?? '.env');
+        const resolvedEnvPath = resolveProjectEnvFilePath(resolvedProjectDir, envFilePath ?? '.env');
 
         // (1) Check which keys already exist
         const allKeyNames = keys.map((k) => k.key);
