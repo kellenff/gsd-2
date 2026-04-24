@@ -55,9 +55,9 @@ describe("completing-milestone dispatch guard (#4324)", () => {
 
     const classifyCall = source.indexOf("classifyMilestoneSummaryContent", summaryGuard);
     assert.ok(classifyCall > -1, "SUMMARY mismatch handling should classify summary content");
-    const dbGateBeforeClassify = source.lastIndexOf("existingSummary && isDbAvailable()", classifyCall);
+    const dbGateBeforeClassify = source.indexOf("existingSummary && isDbAvailable()", summaryGuard);
     assert.ok(
-      dbGateBeforeClassify < summaryGuard,
+      dbGateBeforeClassify === -1 || dbGateBeforeClassify > classifyCall,
       "SUMMARY classification must not be gated on DB availability",
     );
 

@@ -145,7 +145,7 @@ async function isTerminalMilestoneSummaryFile(
   loader: (path: string) => Promise<string | null>,
 ): Promise<boolean> {
   const content = await loader(path);
-  return content == null || isTerminalMilestoneSummaryContent(content);
+  return content != null && isTerminalMilestoneSummaryContent(content);
 }
 
 // ─── State Derivation ──────────────────────────────────────────────────────
@@ -1185,7 +1185,7 @@ export async function _deriveStateImpl(basePath: string): Promise<GSDState> {
       const summaryFile = resolveMilestoneFile(basePath, mid, "SUMMARY");
       if (summaryFile) {
         const summaryContent = await cachedLoadFile(summaryFile);
-        if (!summaryContent || isTerminalMilestoneSummaryContent(summaryContent)) {
+        if (summaryContent != null && isTerminalMilestoneSummaryContent(summaryContent)) {
           const summaryTitle = summaryContent
             ? (parseSummary(summaryContent).title || mid)
             : mid;
