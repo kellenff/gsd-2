@@ -993,3 +993,109 @@ test("language: global setting used when project has none", () => {
     rmSync(tempGsdHome, { recursive: true, force: true });
   }
 });
+
+// ── GitLab preferences ────────────────────────────────────────────────────────
+
+test("gitlab: enabled accepts boolean", () => {
+  const { errors, preferences } = validatePreferences({ gitlab: { enabled: true } });
+  assert.equal(errors.length, 0);
+  assert.equal(preferences.gitlab?.enabled, true);
+});
+
+test("gitlab: project accepts valid group/project format", () => {
+  const { errors, preferences } = validatePreferences({ gitlab: { project: "group/myproject" } });
+  assert.equal(errors.length, 0);
+  assert.equal(preferences.gitlab?.project, "group/myproject");
+});
+
+test("gitlab: project rejects string without slash", () => {
+  const { errors } = validatePreferences({ gitlab: { project: "nogroup" } } as any);
+  assert.ok(errors.some(e => e.includes("gitlab.project")), errors.join("; "));
+});
+
+test("gitlab: base_url accepts valid URL", () => {
+  const { errors, preferences } = validatePreferences({
+    gitlab: { base_url: "https://gitlab.mycompany.com" },
+  } as any);
+  assert.equal(errors.length, 0);
+  assert.equal(preferences.gitlab?.base_url, "https://gitlab.mycompany.com");
+});
+
+test("gitlab: base_url strips trailing slash", () => {
+  const { preferences } = validatePreferences({
+    gitlab: { base_url: "https://gitlab.example.com/" },
+  } as any);
+  assert.equal(preferences.gitlab?.base_url, "https://gitlab.example.com");
+});
+
+test("gitlab: base_url rejects invalid URL", () => {
+  const { errors } = validatePreferences({
+    gitlab: { base_url: "not-a-url" },
+  } as any);
+  assert.ok(errors.some(e => e.includes("gitlab.base_url")), errors.join("; "));
+});
+
+test("gitlab: labels accepts string array", () => {
+  const { errors, preferences } = validatePreferences({
+    gitlab: { labels: ["gsd", "milestone"] },
+  } as any);
+  assert.equal(errors.length, 0);
+  assert.deepEqual(preferences.gitlab?.labels, ["gsd", "milestone"]);
+});
+
+test("gitlab: labels rejects non-array", () => {
+  const { errors } = validatePreferences({ gitlab: { labels: "not-an-array" } } as any);
+  assert.ok(errors.some(e => e.includes("gitlab.labels")), errors.join("; "));
+});
+
+test("gitlab: default_milestone_state accepts valid values", () => {
+  for (const val of ["active", "closed"] as const) {
+    const { errors, preferences } = validatePreferences({
+      gitlab: { default_milestone_state: val },
+    } as any);
+    assert.equal(errors.length, 0, `${val}: no errors`);
+    assert.equal(preferences.gitlab?.default_milestone_state, val);
+  }
+});
+
+test("gitlab: default_milestone_state rejects invalid value", () => {
+  const { errors } = validatePreferences({
+    gitlab: { default_milestone_state: "invalid" },
+  } as any);
+  assert.ok(errors.some(e => e.includes("gitlab.default_milestone_state")), errors.join("; "));
+});
+
+test("gitlab: auto_close_references and slice_issues_as_children are booleans", () => {
+  for (const key of ["auto_close_references", "slice_issues_as_children"] as const) {
+    const { errors, preferences } = validatePreferences({
+      gitlab: { [key]: true },
+    } as any);
+    assert.equal(errors.length, 0, `${key}: no errors`);
+    assert.equal((preferences.gitlab as any)?.[key], true);
+  }
+});
+
+test("gitlab: title templates accept strings", () => {
+  const { errors, preferences } = validatePreferences({
+    gitlab: {
+      milestone_title_template: "{{id}}: {{title}}",
+      issue_title_template: "{{id}}: {{title}}",
+    },
+  } as any);
+  assert.equal(errors.length, 0);
+  assert.equal(preferences.gitlab?.milestone_title_template, "{{id}}: {{title}}");
+  assert.equal(preferences.gitlab?.issue_title_template, "{{id}}: {{title}}");
+});
+
+test("gitlab: unknown keys produce warnings", () => {
+  const { warnings } = validatePreferences({
+    gitlab: { unknown_key: "value" } as any,
+  });
+  assert.ok(warnings.some(w => w.includes('unknown gitlab key "unknown_key"')), warnings.join("; "));
+});
+
+test("gitlab: non-object value produces error", () => {
+  const { errors } = validatePreferences({ gitlab: "not-an-object" } as any);
+  assert.ok(errors.some(e => e.includes("gitlab must be an object")), errors.join("; "));
+});
+

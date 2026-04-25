@@ -172,3 +172,48 @@ describe("mergeCapabilityOverrides", () => {
     assert.equal(merged.toolCalling, true); // from default
   });
 });
+
+// ─── GitLab Duo — openai-responses capability family ─────────────────────────
+// The gitlab-duo provider uses the openai-responses API, which provides
+// text-only thinking persistence. The reasoning field in the gitlab-duo
+// models catalog is descriptive only — it marks model suitability for
+// reasoning-heavy tasks, not a request-time reasoning-control parameter.
+// GitLab's public docs do not currently document a GitLab-specific equivalent
+// of Anthropic's effort/thinking request options.
+
+describe("GitLab Duo — openai-responses capability family", () => {
+  test("openai-responses has text-only thinking persistence", () => {
+    // GitLab Duo delegates to openai-responses, so it inherits text-only thinking.
+    // The catalog's reasoning field is descriptive only (see models.ts).
+    assert.equal(
+      PROVIDER_CAPABILITIES["openai-responses"].thinkingPersistence,
+      "text-only",
+      "openai-responses must have text-only thinking persistence (what gitlab-duo inherits)",
+    );
+  });
+
+  test("openai-responses does not support image tool results", () => {
+    // GitLab Duo cannot receive images in tool results via the openai-responses API.
+    assert.equal(
+      PROVIDER_CAPABILITIES["openai-responses"].imageToolResults,
+      false,
+      "openai-responses (and by extension gitlab-duo) must not support image tool results",
+    );
+  });
+
+  test("openai-responses supports tool calling (used by gitlab-duo)", () => {
+    assert.equal(
+      PROVIDER_CAPABILITIES["openai-responses"].toolCalling,
+      true,
+      "openai-responses must support tool calling",
+    );
+  });
+
+  test("openai-responses has structured output (GitLab Duo uses JSON mode)", () => {
+    assert.equal(
+      PROVIDER_CAPABILITIES["openai-responses"].structuredOutput,
+      true,
+      "openai-responses must support structured output",
+    );
+  });
+});

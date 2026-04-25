@@ -10,6 +10,7 @@ import {
   scoreEligibleModels,
   getEligibleModels,
   MODEL_CAPABILITY_PROFILES,
+  MODEL_CAPABILITY_TIER,
 } from "../model-router.js";
 import type { DynamicRoutingConfig, RoutingDecision, ModelCapabilities } from "../model-router.js";
 import type { ClassificationResult } from "../complexity-classifier.js";
@@ -804,5 +805,108 @@ describe("getModelTier unknown default", () => {
     assert.ok(standardModels.includes("totally-unknown-model-abc"), "Unknown model should be in standard tier");
     assert.equal(lightModels.length, 0, "Unknown model should NOT be in light tier");
     assert.equal(heavyModels.length, 0, "Unknown model should NOT be in heavy tier");
+  });
+});
+
+// ─── GitLab Duo model IDs (documented-first catalog) ─────────────────────────
+// These tests assert that the gitlab-duo provider's documented-first model IDs
+// (claude-sonnet-4 and claude-opus-4 from models.ts) are wired into the router
+// with the correct tier classifications and capability profiles.
+// The reasoning field in the catalog is descriptive only — it marks model
+// suitability for reasoning-heavy tasks, not a request-time reasoning-control.
+
+describe("GitLab Duo model IDs — tier and capability wiring", () => {
+  // GitLab Duo models are known in the tier map (documented-first catalog)
+  test("claude-sonnet-4 is in MODEL_CAPABILITY_TIER", () => {
+    assert.ok(MODEL_CAPABILITY_TIER["claude-sonnet-4"], "claude-sonnet-4 must be in tier map");
+    assert.equal(MODEL_CAPABILITY_TIER["claude-sonnet-4"], "standard", "claude-sonnet-4 must be standard tier");
+  });
+
+  test("claude-opus-4 is in MODEL_CAPABILITY_TIER", () => {
+    assert.ok(MODEL_CAPABILITY_TIER["claude-opus-4"], "claude-opus-4 must be in tier map");
+    assert.equal(MODEL_CAPABILITY_TIER["claude-opus-4"], "heavy", "claude-opus-4 must be heavy tier");
+  });
+
+  test("claude-sonnet-4 has a MODEL_CAPABILITY_PROFILES entry", () => {
+    assert.ok(
+      MODEL_CAPABILITY_PROFILES["claude-sonnet-4"],
+      "claude-sonnet-4 must have a capability profile",
+    );
+  });
+
+  test("claude-opus-4 has a MODEL_CAPABILITY_PROFILES entry", () => {
+    assert.ok(
+      MODEL_CAPABILITY_PROFILES["claude-opus-4"],
+      "claude-opus-4 must have a capability profile",
+    );
+  });
+
+  test("claude-sonnet-4 capability profile scores reflect standard-tier", () => {
+    const profile = MODEL_CAPABILITY_PROFILES["claude-sonnet-4"]!;
+    // claude-sonnet-4 is the documented GitLab-managed default — comparable to claude-sonnet-4-6
+    assert.ok(profile.coding >= 80, "standard tier must have coding >= 80");
+    assert.ok(profile.reasoning >= 75, "standard tier must have reasoning >= 75");
+    assert.ok(profile.speed >= 50, "standard tier must have speed >= 50");
+  });
+
+  test("claude-opus-4 capability profile scores reflect heavy-tier", () => {
+    const profile = MODEL_CAPABILITY_PROFILES["claude-opus-4"]!;
+    // claude-opus-4 is self-hosted/deployment-dependent — comparable to claude-opus-4-6
+    assert.ok(profile.coding >= 90, "heavy tier must have coding >= 90");
+    assert.ok(profile.reasoning >= 90, "heavy tier must have reasoning >= 90");
+  });
+
+  test("claude-sonnet-4 routes as standard tier (no downgrade for standard requests)", () => {
+    const config: DynamicRoutingConfig = { ...defaultRoutingConfig(), enabled: true };
+    const result = resolveModelForComplexity(
+      makeClassification("standard"),
+      { primary: "claude-sonnet-4", fallbacks: [] },
+      config,
+      ["claude-sonnet-4", "claude-opus-4", "claude-haiku-4-5"],
+    );
+    assert.equal(result.modelId, "claude-sonnet-4", "standard request should use claude-sonnet-4");
+    assert.equal(result.wasDowngraded, false, "standard request should not downgrade claude-sonnet-4");
+    assert.ok(!result.reason.includes("not in the known tier map"), "claude-sonnet-4 must be known");
+  });
+
+  test("claude-opus-4 routes as heavy tier (no downgrade for heavy requests)", () => {
+    const config: DynamicRoutingConfig = { ...defaultRoutingConfig(), enabled: true };
+    const result = resolveModelForComplexity(
+      makeClassification("heavy"),
+      { primary: "claude-opus-4", fallbacks: [] },
+      config,
+      ["claude-sonnet-4", "claude-opus-4", "claude-haiku-4-5"],
+    );
+    assert.equal(result.modelId, "claude-opus-4", "heavy request should use claude-opus-4");
+    assert.equal(result.wasDowngraded, false, "heavy request should not downgrade claude-opus-4");
+    assert.ok(!result.reason.includes("not in the known tier map"), "claude-opus-4 must be known");
+  });
+
+  test("claude-opus-4 downgrades to light for light-tier requests", () => {
+    const config: DynamicRoutingConfig = { ...defaultRoutingConfig(), enabled: true };
+    const result = resolveModelForComplexity(
+      makeClassification("light"),
+      { primary: "claude-opus-4", fallbacks: [] },
+      config,
+      ["claude-sonnet-4", "claude-opus-4", "claude-haiku-4-5", "gpt-4o-mini"],
+    );
+    assert.equal(result.wasDowngraded, true, "heavy model should downgrade for light task");
+    assert.notEqual(result.modelId, "claude-opus-4", "claude-opus-4 should not be used for light task");
+    assert.ok(
+      ["claude-haiku-4-5", "gpt-4o-mini", "claude-sonnet-4"].includes(result.modelId),
+      `downgraded model should be light/standard tier, got: ${result.modelId}`,
+    );
+  });
+
+  test("claude-opus-4 downgrades to standard for standard-tier requests", () => {
+    const config: DynamicRoutingConfig = { ...defaultRoutingConfig(), enabled: true };
+    const result = resolveModelForComplexity(
+      makeClassification("standard"),
+      { primary: "claude-opus-4", fallbacks: [] },
+      config,
+      ["claude-sonnet-4", "claude-opus-4", "claude-haiku-4-5"],
+    );
+    assert.equal(result.wasDowngraded, true, "heavy model should downgrade for standard task");
+    assert.equal(result.modelId, "claude-sonnet-4", "claude-sonnet-4 should be used for standard task");
   });
 });

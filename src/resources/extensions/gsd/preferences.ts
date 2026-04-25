@@ -427,6 +427,9 @@ function mergePreferences(base: GSDPreferences, override: GSDPreferences): GSDPr
     github: (base.github || override.github)
       ? { ...(base.github ?? {}), ...(override.github ?? {}) } as import("../github-sync/types.js").GitHubSyncConfig
       : undefined,
+    gitlab: (base.gitlab || override.gitlab)
+      ? { ...(base.gitlab ?? {}), ...(override.gitlab ?? {}) } as import("../gitlab-sync/types.js").GitLabSyncConfig
+      : undefined,
     experimental: (base.experimental || override.experimental)
       ? { ...(base.experimental ?? {}), ...(override.experimental ?? {}) }
       : undefined,

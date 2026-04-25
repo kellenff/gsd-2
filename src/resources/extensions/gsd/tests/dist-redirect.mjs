@@ -29,6 +29,10 @@ export function resolve(specifier, context, nextResolve) {
     // Sub-path imports like @gsd/native/fd, @gsd/native/text, etc.
     const subpath = specifier.slice("@gsd/native/".length);
     specifier = new URL(`packages/native/src/${subpath}/index.ts`, ROOT).href;
+  } else if (specifier === "yaml" || specifier === "yaml/") {
+    // Redirect bare 'yaml' package import to its dist entry so strip-types
+    // doesn't try to load it as TypeScript source.
+    specifier = require.resolve("yaml");
   }
   // 2. Redirect packages/*/dist/ → packages/*/src/ with .js→.ts for strip-types
   //    Also handles local imports — skip rewrite for dist/ paths that are real compiled artifacts.

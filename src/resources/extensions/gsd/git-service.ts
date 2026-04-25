@@ -133,6 +133,8 @@ export interface TaskCommitContext {
   keyFiles?: string[];
   /** GitHub issue number — appends "Resolves #N" trailer when set. */
   issueNumber?: number;
+  /** GitLab issue IID — appends "Closes gitlab!{iid}" trailer when set. */
+  gitlabIssueIid?: number;
 }
 
 /**
@@ -168,11 +170,15 @@ export function buildTaskCommitMessage(ctx: TaskCommitContext): string {
     bodyParts.push(fileLines);
   }
 
-  // Trailers: GSD-Task first, then Resolves
+  // Trailers: GSD-Task first, then Resolves, then GitLab close reference
   bodyParts.push(`GSD-Task: ${ctx.taskId}`);
 
   if (ctx.issueNumber) {
     bodyParts.push(`Resolves #${ctx.issueNumber}`);
+  }
+
+  if (ctx.gitlabIssueIid) {
+    bodyParts.push(`Closes gitlab!${ctx.gitlabIssueIid}`);
   }
 
   return `${subject}\n\n${bodyParts.join("\n\n")}`;

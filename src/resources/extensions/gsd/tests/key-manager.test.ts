@@ -352,7 +352,8 @@ test("runKeyDoctor reports missing LLM provider", () => {
     "GEMINI_API_KEY", "GROQ_API_KEY", "XAI_API_KEY", "OPENROUTER_API_KEY",
     "MISTRAL_API_KEY", "GITHUB_TOKEN", "GH_TOKEN", "COPILOT_GITHUB_TOKEN",
     "OLLAMA_API_KEY", "CUSTOM_OPENAI_API_KEY", "CEREBRAS_API_KEY",
-    "AZURE_OPENAI_API_KEY",
+    "AZURE_OPENAI_API_KEY", "GITLAB_TOKEN",
+    "MINIMAX_API_KEY", "MINIMAX_CN_API_KEY",
   ];
   const saved: Record<string, string | undefined> = {};
   for (const v of llmEnvVars) {
@@ -497,5 +498,65 @@ test("getAllKeyStatuses detects DASHSCOPE_API_KEY for alibaba-dashscope (failure
     assert.equal(found.source, "none");
   } finally {
     if (saved !== undefined) process.env.DASHSCOPE_API_KEY = saved;
+  }
+});
+
+// ─── gitlab-duo ─────────────────────────────────────────────────────────────────
+
+test("gitlab-duo is in PROVIDER_REGISTRY", () => {
+  const ids = PROVIDER_REGISTRY.map((p) => p.id);
+  assert.ok(ids.includes("gitlab-duo"), "gitlab-duo must be in PROVIDER_REGISTRY");
+});
+
+test("gitlab-duo is an LLM provider with GITLAB_TOKEN env var", () => {
+  const provider = findProvider("gitlab-duo");
+  assert.ok(provider, "gitlab-duo must be findable");
+  assert.equal(provider.category, "llm");
+  assert.equal(provider.envVar, "GITLAB_TOKEN");
+  assert.equal(provider.id, "gitlab-duo");
+});
+
+test("findProvider finds gitlab-duo case-insensitively", () => {
+  assert.equal(findProvider("gitlab-duo")?.id, "gitlab-duo");
+  assert.equal(findProvider("GITLAB-DUO")?.id, "gitlab-duo");
+});
+
+test("getAllKeyStatuses includes gitlab-duo", () => {
+  const auth = makeAuth();
+  const statuses = getAllKeyStatuses(auth);
+  const found = statuses.find((s) => s.provider.id === "gitlab-duo");
+  assert.ok(found, "getAllKeyStatuses must include gitlab-duo");
+  assert.equal(found.provider.category, "llm");
+});
+
+test("getAllKeyStatuses detects GITLAB_TOKEN env var", () => {
+  const saved = process.env.GITLAB_TOKEN;
+  process.env.GITLAB_TOKEN = "glpat-test-token-value";
+  try {
+    const auth = makeAuth();
+    const statuses = getAllKeyStatuses(auth);
+    const found = statuses.find((s) => s.provider.id === "gitlab-duo");
+    assert.ok(found);
+    assert.equal(found.configured, true);
+    assert.equal(found.source, "env");
+    assert.equal(found.credentialCount, 1);
+  } finally {
+    if (saved === undefined) delete process.env.GITLAB_TOKEN;
+    else process.env.GITLAB_TOKEN = saved;
+  }
+});
+
+test("getAllKeyStatuses shows gitlab-duo as not configured when GITLAB_TOKEN is missing", () => {
+  const saved = process.env.GITLAB_TOKEN;
+  delete process.env.GITLAB_TOKEN;
+  try {
+    const auth = makeAuth();
+    const statuses = getAllKeyStatuses(auth);
+    const found = statuses.find((s) => s.provider.id === "gitlab-duo");
+    assert.ok(found);
+    assert.equal(found.configured, false);
+    assert.equal(found.source, "none");
+  } finally {
+    if (saved !== undefined) process.env.GITLAB_TOKEN = saved;
   }
 });

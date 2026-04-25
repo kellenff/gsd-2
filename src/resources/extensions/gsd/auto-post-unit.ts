@@ -327,12 +327,29 @@ export async function autoCommitUnit(
                 logWarning("engine", `GitHub issue lookup failed: ${err instanceof Error ? err.message : String(err)}`);
               }
 
+              // Look up GitLab issue IID for commit close reference
+              let gitlabIssueIid: number | undefined;
+              try {
+                const prefs = loadEffectiveGSDPreferences(basePath)?.preferences;
+                if (prefs?.gitlab?.auto_close_references !== false) {
+                  const { loadSyncMapping, getTaskIid } = await import("../gitlab-sync/mapping.js");
+                  const mapping = loadSyncMapping(basePath);
+                  if (mapping) {
+                    const glIid = getTaskIid(mapping, mid, sid, tid);
+                    if (glIid) gitlabIssueIid = glIid;
+                  }
+                }
+              } catch (err) {
+                logWarning("engine", `GitLab issue lookup failed: ${err instanceof Error ? err.message : String(err)}`);
+              }
+
               taskContext = {
                 taskId: `${sid}/${tid}`,
                 taskTitle: summary.title?.replace(/^T\d+:\s*/, "") || tid,
                 oneLiner: summary.oneLiner || undefined,
                 keyFiles: summary.frontmatter.key_files?.filter(f => !f.includes("{{")) || undefined,
                 issueNumber: ghIssueNumber,
+                gitlabIssueIid,
               };
             }
           } catch (e) {
@@ -429,12 +446,29 @@ export async function postUnitPreVerification(pctx: PostUnitContext, opts?: PreV
                   logWarning("engine", `GitHub issue lookup failed: ${err instanceof Error ? err.message : String(err)}`);
                 }
 
+                // Look up GitLab issue IID for commit close reference
+                let gitlabIssueIid: number | undefined;
+                try {
+                  const prefs = loadEffectiveGSDPreferences(s.basePath)?.preferences;
+                  if (prefs?.gitlab?.auto_close_references !== false) {
+                    const { loadSyncMapping, getTaskIid } = await import("../gitlab-sync/mapping.js");
+                    const mapping = loadSyncMapping(s.basePath);
+                    if (mapping) {
+                      const glIid = getTaskIid(mapping, mid, sid, tid);
+                      if (glIid) gitlabIssueIid = glIid;
+                    }
+                  }
+                } catch (err) {
+                  logWarning("engine", `GitLab issue lookup failed: ${err instanceof Error ? err.message : String(err)}`);
+                }
+
                 taskContext = {
                   taskId: `${sid}/${tid}`,
                   taskTitle: summary.title?.replace(/^T\d+:\s*/, "") || tid,
                   oneLiner: summary.oneLiner || undefined,
                   keyFiles: summary.frontmatter.key_files?.filter(f => !f.includes("{{")) || undefined,
                   issueNumber: ghIssueNumber,
+                  gitlabIssueIid,
                 };
               }
             } catch (e) {
@@ -556,6 +590,12 @@ export async function postUnitPreVerification(pctx: PostUnitContext, opts?: PreV
     await runSafely("postUnit", "github-sync", async () => {
       const { runGitHubSync } = await import("../github-sync/sync.js");
       await runGitHubSync(s.basePath, unit.type, unit.id);
+    });
+
+    // GitLab sync (non-blocking, opt-in) — runs independently of GitHub sync
+    await runSafely("postUnit", "gitlab-sync", async () => {
+      const { runGitLabSync } = await import("../gitlab-sync/sync.js");
+      await runGitLabSync(s.basePath, unit.type, unit.id);
     });
 
     // Prune dead bg-shell processes

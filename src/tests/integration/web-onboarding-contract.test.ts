@@ -48,6 +48,7 @@ const ONBOARDING_ENV_KEYS = [
   "AWS_CONTAINER_CREDENTIALS_RELATIVE_URI",
   "AWS_CONTAINER_CREDENTIALS_FULL_URI",
   "AWS_WEB_IDENTITY_TOKEN_FILE",
+  "GITLAB_TOKEN",
 ] as const;
 
 const ORIGINAL_ONBOARDING_ENV = Object.fromEntries(
@@ -356,6 +357,7 @@ test("boot and onboarding routes expose locked required state plus explicitly sk
     "alibaba-coding-plan",
     "alibaba-dashscope",
     "claude-code",
+    "gitlab-duo",
   ]);
   const anthropicProvider = bootPayload.onboarding.required.providers.find((provider: any) => provider.id === "anthropic");
   assert.equal(anthropicProvider.supports.apiKey, true);
@@ -407,6 +409,79 @@ test("runtime env-backed auth unlocks boot onboarding state and reports the envi
   const copilotProvider = bootPayload.onboarding.required.providers.find((provider: any) => provider.id === "github-copilot");
   assert.equal(copilotProvider.configured, true);
   assert.equal(copilotProvider.configuredVia, "environment");
+});
+
+test("gitlab-duo env-backed auth unlocks onboarding when GITLAB_TOKEN is set", async (t) => {
+  const fixture = makeWorkspaceFixture();
+  clearOnboardingEnv();
+  const authStorage = AuthStorage.inMemory({});
+  const previousGitlabToken = process.env.GITLAB_TOKEN;
+  process.env.GITLAB_TOKEN = "glpat_runtime_env_token_for_gitlab_duo";
+  configureBridgeFixture(fixture, "sess-gitlab-duo-env");
+  onboarding.configureOnboardingServiceForTests({
+    authStorage,
+    getEnvApiKey: (provider: string) => (provider === "gitlab-duo" ? process.env.GITLAB_TOKEN : undefined),
+  });
+
+  t.after(async () => {
+    if (previousGitlabToken === undefined) {
+      delete process.env.GITLAB_TOKEN;
+    } else {
+      process.env.GITLAB_TOKEN = previousGitlabToken;
+    }
+    onboarding.resetOnboardingServiceForTests();
+    await bridge.resetBridgeServiceForTests();
+    restoreOnboardingEnv();
+    fixture.cleanup();
+  });
+
+  const bootResponse = await bootRoute.GET(projectRequest(fixture.projectCwd, "/api/boot"));
+  assert.equal(bootResponse.status, 200);
+  const bootPayload = (await bootResponse.json()) as any;
+
+  // claude-code (external CLI) is always treated as configured and appears before
+  // gitlab-duo in the catalog, so it wins the satisfiedBy slot.
+  assert.equal(bootPayload.onboardingNeeded, false);
+  assert.equal(bootPayload.onboarding.locked, false);
+  assert.equal(bootPayload.onboarding.lockReason, null);
+  assert.equal(bootPayload.onboarding.required.satisfied, true);
+  assert.equal(bootPayload.onboarding.required.satisfiedBy.providerId, "claude-code");
+  assert.equal(bootPayload.onboarding.required.satisfiedBy.source, "external_cli");
+
+  const gitlabDuoProvider = bootPayload.onboarding.required.providers.find((provider: any) => provider.id === "gitlab-duo");
+  assert.ok(gitlabDuoProvider, "gitlab-duo must appear in the required providers list");
+  assert.equal(gitlabDuoProvider.configured, true);
+  assert.equal(gitlabDuoProvider.configuredVia, "environment");
+  assert.equal(gitlabDuoProvider.supports.apiKey, false);
+  assert.equal(gitlabDuoProvider.supports.oauth, false);
+  assert.equal(gitlabDuoProvider.supports.externalCli, false);
+});
+
+test("gitlab-duo appears as not configured when GITLAB_TOKEN is absent", async (t) => {
+  const fixture = makeWorkspaceFixture();
+  clearOnboardingEnv();
+  const authStorage = AuthStorage.inMemory({});
+  configureBridgeFixture(fixture, "sess-gitlab-duo-no-token");
+  onboarding.configureOnboardingServiceForTests({
+    authStorage,
+    getEnvApiKey: noEnvApiKey,
+  });
+
+  t.after(async () => {
+    onboarding.resetOnboardingServiceForTests();
+    await bridge.resetBridgeServiceForTests();
+    restoreOnboardingEnv();
+    fixture.cleanup();
+  });
+
+  const bootResponse = await bootRoute.GET(projectRequest(fixture.projectCwd, "/api/boot"));
+  assert.equal(bootResponse.status, 200);
+  const bootPayload = (await bootResponse.json()) as any;
+
+  const gitlabDuoProvider = bootPayload.onboarding.required.providers.find((provider: any) => provider.id === "gitlab-duo");
+  assert.ok(gitlabDuoProvider, "gitlab-duo must appear in the required providers list");
+  assert.equal(gitlabDuoProvider.configured, false);
+  assert.equal(gitlabDuoProvider.configuredVia, null);
 });
 
 test("failed API-key validation stays locked, redacts the error, and is reflected in boot state without persisting auth", async (t) => {

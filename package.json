@@ -142,7 +142,7 @@
     "c8": "^11.0.0",
     "esbuild": "^0.25.12",
     "jiti": "^2.6.1",
-    "typescript": "^5.4.0"
+    "typescript": "^5.9.3"
   },
   "optionalDependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.83",

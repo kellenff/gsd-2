@@ -1092,6 +1092,84 @@ export function validatePreferences(preferences: GSDPreferences): {
     }
   }
 
+  // ─── GitLab Sync ────────────────────────────────────────────────────────
+  if (preferences.gitlab !== undefined) {
+    if (typeof preferences.gitlab === "object" && preferences.gitlab !== null) {
+      const gl = preferences.gitlab as unknown as Record<string, unknown>;
+      const validGl: Record<string, unknown> = {};
+
+      if (gl.enabled !== undefined) {
+        if (typeof gl.enabled === "boolean") validGl.enabled = gl.enabled;
+        else errors.push("gitlab.enabled must be a boolean");
+      }
+      if (gl.project !== undefined) {
+        if (typeof gl.project === "string" && gl.project.includes("/")) validGl.project = gl.project;
+        else errors.push('gitlab.project must be a string in "group/project" format');
+      }
+      if (gl.base_url !== undefined) {
+        if (typeof gl.base_url === "string" && gl.base_url.startsWith("http")) {
+          validGl.base_url = gl.base_url.replace(/\/$/, "");
+        } else {
+          errors.push("gitlab.base_url must be a valid HTTP(S) URL");
+        }
+      }
+      if (gl.labels !== undefined) {
+        if (Array.isArray(gl.labels) && gl.labels.every((l: unknown) => typeof l === "string")) {
+          validGl.labels = gl.labels;
+        } else {
+          errors.push("gitlab.labels must be an array of strings");
+        }
+      }
+      if (gl.milestone_title_template !== undefined) {
+        if (typeof gl.milestone_title_template === "string") validGl.milestone_title_template = gl.milestone_title_template;
+        else errors.push("gitlab.milestone_title_template must be a string");
+      }
+      if (gl.issue_title_template !== undefined) {
+        if (typeof gl.issue_title_template === "string") validGl.issue_title_template = gl.issue_title_template;
+        else errors.push("gitlab.issue_title_template must be a string");
+      }
+      if (gl.default_milestone_state !== undefined) {
+        const validStates = new Set(["active", "closed"]);
+        if (typeof gl.default_milestone_state === "string" && validStates.has(gl.default_milestone_state)) {
+          validGl.default_milestone_state = gl.default_milestone_state;
+        } else {
+          errors.push("gitlab.default_milestone_state must be one of: active, closed");
+        }
+      }
+      if (gl.auto_close_references !== undefined) {
+        if (typeof gl.auto_close_references === "boolean") validGl.auto_close_references = gl.auto_close_references;
+        else errors.push("gitlab.auto_close_references must be a boolean");
+      }
+      if (gl.slice_issues_as_children !== undefined) {
+        if (typeof gl.slice_issues_as_children === "boolean") validGl.slice_issues_as_children = gl.slice_issues_as_children;
+        else errors.push("gitlab.slice_issues_as_children must be a boolean");
+      }
+
+      const knownGlKeys = new Set([
+        "enabled",
+        "project",
+        "base_url",
+        "labels",
+        "milestone_title_template",
+        "issue_title_template",
+        "default_milestone_state",
+        "auto_close_references",
+        "slice_issues_as_children",
+      ]);
+      for (const key of Object.keys(gl)) {
+        if (!knownGlKeys.has(key)) {
+          warnings.push(`unknown gitlab key "${key}" — ignored`);
+        }
+      }
+
+      if (Object.keys(validGl).length > 0) {
+        validated.gitlab = validGl as unknown as import("../gitlab-sync/types.js").GitLabSyncConfig;
+      }
+    } else {
+      errors.push("gitlab must be an object");
+    }
+  }
+
   // ─── Show Token Cost ──────────────────────────────────────────────
   if (preferences.show_token_cost !== undefined) {
     if (typeof preferences.show_token_cost === "boolean") {

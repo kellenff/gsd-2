@@ -141,6 +141,7 @@ export function getEnvApiKey(provider: any): string | undefined {
 		ollama: "OLLAMA_API_KEY",
 		"ollama-cloud": "OLLAMA_API_KEY",
 		"custom-openai": "CUSTOM_OPENAI_API_KEY",
+		"gitlab-duo": "GITLAB_TOKEN",
 	};
 
 	const envVar = envMap[provider];

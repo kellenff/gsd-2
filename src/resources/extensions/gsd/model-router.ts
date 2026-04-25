@@ -97,10 +97,18 @@ export const MODEL_CAPABILITY_TIER: Record<string, ComplexityTier> = {
   "gemini-2.5-pro": "standard",
   "deepseek-chat": "standard",
 
+  // GitLab Duo standard tier — documented-first catalog (see models.ts).
+  // claude-sonnet-4: GitLab-managed default per duo_agent_platform docs.
+  "claude-sonnet-4": "standard",
+
   // Heavy-tier models (most capable)
   "claude-opus-4-6": "heavy",
   "claude-opus-4-7": "heavy",
   "claude-3-opus-latest": "heavy",
+
+  // GitLab Duo heavy tier — documented-first catalog (see models.ts).
+  // claude-opus-4: self-hosted / deployment-dependent.
+  "claude-opus-4": "heavy",
   "gpt-4-turbo": "heavy",
   "gpt-5": "heavy",
   "gpt-5-pro": "heavy",
@@ -168,6 +176,14 @@ export const MODEL_CAPABILITY_PROFILES: Record<string, ModelCapabilities> = {
   "claude-3-5-haiku-latest":      { coding: 60, debugging: 50, research: 45, reasoning: 50, speed: 95, longContext: 50, instruction: 75 },
   "claude-3-haiku-20240307":      { coding: 50, debugging: 40, research: 35, reasoning: 40, speed: 95, longContext: 40, instruction: 65 },
   "claude-3-opus-latest":         { coding: 90, debugging: 85, research: 82, reasoning: 90, speed: 35, longContext: 75, instruction: 88 },
+
+  // ── GitLab Duo (documented-first catalog) ─────────────────────────────────
+  // These models use the claude-sonnet-4 and claude-opus-4 base family IDs
+  // from the documented-first catalog (src/resources/extensions/gitlab-duo/models.ts).
+  // Scores mirror their family counterparts in the Anthropic section.
+  // reasoning field in the catalog is descriptive only — not a request-time control.
+  "claude-sonnet-4":              { coding: 85, debugging: 80, research: 75, reasoning: 80, speed: 60, longContext: 75, instruction: 85 },
+  "claude-opus-4":               { coding: 95, debugging: 90, research: 85, reasoning: 95, speed: 30, longContext: 80, instruction: 90 },
 
   // ── OpenAI GPT ─────────────────────────────────────────────────────────────
   "gpt-4o":                       { coding: 80, debugging: 75, research: 70, reasoning: 75, speed: 65, longContext: 70, instruction: 80 },
